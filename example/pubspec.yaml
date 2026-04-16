@@ -1,12 +1,13 @@
-name: twilio_voice_example
-description: Demonstrates how to use the twilio_voice plugin.
+name: flutter_twilio_example
+description: Demonstrates how to use the flutter_twilio plugin.
 
 # The following line prevents the package from being accidentally published to
 # pub.dev using `pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 environment:
-  sdk: ">=2.18.0 <4.0.0"
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.24.0"
 
 dependencies:
   flutter:
@@ -20,10 +21,7 @@ dependencies:
   # this is not necessary, only for use in the example web app
   firebase_analytics: ^11.4.4
 
-  twilio_voice:
-    # When depending on this package from a real application you should use:
-    #   twilio_voice: ^x.y.z
-    # See https://dart.dev/tools/pub/dependencies#version-constraints
+  flutter_twilio:
     # The example app is bundled with the plugin so we use a path dependency on
     # the parent directory to use the current plugin's version.
     path: ../
@@ -33,7 +31,7 @@ dependencies:
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
-  flutter_lints: ^2.0.2
+  flutter_lints: ^4.0.0
   flutter_test:
     sdk: flutter
 
