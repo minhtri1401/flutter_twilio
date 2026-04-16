@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`twilio_voice` is a Flutter plugin providing cross-platform VoIP calling via Twilio's Programmable Voice SDK. Supports iOS (CallKit + PushKit), Android (ConnectionService + FCM), Web (twilio-voice.js), and macOS (uses Web SDK as a temporary workaround — no native macOS SDK exists).
+`twilio_voice` is a Flutter plugin providing cross-platform VoIP calling via Twilio's Programmable Voice SDK. Supports iOS (CallKit + PushKit), Android (custom in-app calling + FCM), Web (twilio-voice.js), and macOS (uses Web SDK via a WKWebView bridge — no native macOS SDK exists).
 
-Current version: `0.3.2+2`
+Current version: `0.3.2+2`. CI pins Flutter `3.27.4` (stable).
 
 ## Commands
 
@@ -35,7 +35,7 @@ The plugin follows Flutter's federated plugin pattern with three layers:
 
 1. **Abstract interface** (`lib/_internal/platform_interface/`) — `TwilioVoicePlatform` and `TwilioCallPlatform` define all public methods. Never modify these without updating all implementations.
 
-2. **MethodChannel implementation** (`lib/_internal/method_channel/`) — `MethodChannelTwilioVoice` and `MethodChannelTwilioCall` route calls to native via `MethodChannel('twilio_voice')`. This is the default implementation used by iOS, Android, and macOS native paths.
+2. **MethodChannel implementation** (`lib/_internal/method_channel/`) — `MethodChannelTwilioVoice` and `MethodChannelTwilioCall` route calls to native via `MethodChannel('twilio_voice')`. Default implementation used by iOS, Android, and macOS native paths.
 
 3. **Web implementation** (`lib/_internal/twilio_voice_web.dart`) — Registered as the web plugin class. Uses JS interop (`lib/_internal/js/`) to wrap twilio-voice.js. Does **not** use MethodChannel.
 
@@ -43,15 +43,17 @@ The plugin follows Flutter's federated plugin pattern with three layers:
 
 ### Native Platforms
 
-| Platform | Native entry point | Key SDK | Notes |
+| Platform | Entry point | Key SDK | Notes |
 |---|---|---|---|
-| Android | `android/.../TwilioVoicePlugin.kt` | Twilio Voice SDK v6.9.0 | Uses `ConnectionService` + FCM, min SDK 26 |
+| Android | `android/.../TwilioVoicePlugin.kt` | Twilio Voice SDK v6.9.0 | Custom in-app calling + FCM, min SDK 26 |
 | iOS | `ios/Classes/SwiftTwilioVoicePlugin.swift` | Twilio Voice SDK v6.13.0 | CallKit + PushKit VoIP notifications |
-| macOS | `macos/Classes/` | twilio-voice.js (Web SDK) | Temporary; no push notification support |
+| macOS | `macos/Classes/TwilioVoicePlugin.swift` | twilio-voice.js (Web SDK) | WKWebView bridge; no push support |
 
-Android call handling: `TVConnectionService.kt` implements `android.telecom.ConnectionService` for native system call UI. `TVBroadcastReceiver.kt` handles incoming broadcasts. FCM is in `VoiceFirebaseMessagingService.kt`.
+**Android** (`android/src/main/kotlin/com/twilio/twilio_voice/`): `TwilioVoicePlugin.kt` wires up method channels and delegates to per-domain handlers under `handler/` (`TVCallMethodHandler`, `TVAudioMethodHandler`, `TVConfigMethodHandler`, `TVPermissionMethodHandler`, `TVRegistrationMethodHandler`). Call state/audio routing live in `service/` (`TVCallManager`, `TVCallState`, `TVCallAudioService` foreground service, `TVAudioManager`). FCM in `fcm/VoiceFirebaseMessagingService.kt`. **Important:** calls now run inside the Flutter app — the previous `ConnectionService` / `TelecomManager` integration was removed (see `MIGRATION.md`); the system dialer no longer appears, and `MANAGE_OWN_CALLS` / phone account setup are no longer required.
 
-iOS/macOS call handling: `SwiftTwilioVoicePlugin.swift` implements `PKPushRegistryDelegate` (PushKit) and `CXProviderDelegate` (CallKit). Audio device management is here.
+**iOS** (`ios/Classes/`): `SwiftTwilioVoicePlugin.swift` is the main `FlutterPlugin` / `PKPushRegistryDelegate` / `CXProviderDelegate` class. Concern-specific helpers sit alongside it: `TVAudioHandler.swift` (AVAudioSession), `TVCallHandler.swift` (call lifecycle), `TVCallKitActions.swift` / `TVCallKitDelegate.swift` (CallKit glue), `TVNotificationDelegate.swift`, `TVPermissionHandler.swift`, `TVRegistrationHandler.swift`.
+
+**macOS** (`macos/Classes/`): `TwilioVoicePlugin.swift` hosts a `TVWebview` (WKWebView) that loads `macos/Resources/index.html` + `twilio.min.js`. The Dart MethodChannel API is bridged into JS through `JsInterop/` and `TwilioVoiceChannelMethods.swift`. Because it's JS-on-Web under the hood, push notifications are unavailable — the app must stay open.
 
 ### Web JS Interop
 
@@ -63,6 +65,8 @@ iOS/macOS call handling: `SwiftTwilioVoicePlugin.swift` implements `PKPushRegist
 
 `lib/_internal/local_storage_web/` handles browser `localStorage` for persisting web config.
 
+The web implementation depends on a **custom patched `twilio.min.js`** (ships in `example/web/` and `macos/Resources/`) — it adds status outputs Flutter uses to track the Twilio `Device`. Don't replace it with the stock CDN build. It also layers `web_callkit` + `js_notifications` on top; the service worker `js_notifications-sw.js` must be present in the consumer app's `web/` directory (see `NOTES.md`).
+
 ### Models
 
 - `ActiveCall` (`lib/models/active_call.dart`) — current call state; contains phone number formatting logic
@@ -70,7 +74,7 @@ iOS/macOS call handling: `SwiftTwilioVoicePlugin.swift` implements `PKPushRegist
 
 ### Event Streaming
 
-Native → Dart events flow via an `EventChannel`. The native side emits string event names that are mapped to `CallEvent` enum values on the Dart side in the method channel implementation.
+Native → Dart events flow via an `EventChannel`. The native side emits string event names that are mapped to `CallEvent` enum values on the Dart side in the method channel implementation. On Android, `TVEventEmitter.kt` is the central emitter; on iOS, `SwiftTwilioVoicePlugin.swift` implements `FlutterStreamHandler` directly.
 
 ## Platform Registration
 
@@ -83,11 +87,12 @@ Native → Dart events flow via an `EventChannel`. The native side emits string 
 
 Android string resources live in `android/src/main/res/values/` and `values-es/`. When adding new user-facing strings on Android, add them to both `strings.xml` files (English + Spanish Latin American).
 
-For iOS/macOS localization, check `*.lproj` directories under the respective platform folder.
+For iOS/macOS localization, check `*.lproj` directories under the respective platform folder (example app has `ios/Runner/en.lproj/Localizable.strings`).
 
 ## Key Constraints
 
-- **macOS**: Uses Web SDK (JS interop), not a native SDK. No push notification (`.voip`/`.apns`) support. App must remain open to receive calls.
-- **Android min SDK**: 26 (Android 8.0).
-- **iOS SDK**: Requires PushKit entitlement and a VoIP certificate for push notifications.
-- The `js` package dependency is a temporary measure; plan is to migrate to `js_interop` (Dart's newer web interop approach).
+- **macOS**: Uses Web SDK via WKWebView, not a native SDK. No push notification (`.voip`/`.apns`) support. App must remain open to receive calls.
+- **Android min SDK**: 26 (Android 8.0); `compileSdkVersion` 34.
+- **iOS**: Requires PushKit entitlement and a VoIP certificate for push notifications.
+- The `js: ^0.7.1` dependency is temporary; plan is to migrate to `package:web` + `dart:js_interop` (Dart's newer web interop approach).
+- Android breaking change: migrating apps off the old `ConnectionService` flow — see `MIGRATION.md` before touching Android call routing, permissions, or phone-account code.
