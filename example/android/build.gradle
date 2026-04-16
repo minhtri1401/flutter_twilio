@@ -1,0 +1,37 @@
+buildscript {
+    ext {
+        agpVersion              = "8.8.0"
+        compileSdkVersion       = 35
+        targetSdkVersion        = 35
+        minSdkVersion           = 26
+        googlesServicesVersion  = "4.4.2"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath "com.android.tools.build:gradle:${agpVersion}"
+        classpath "com.google.gms:google-services:${googlesServicesVersion}"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.layout.buildDirectory.set(file('../build'))
+subprojects {
+    subproject -> subproject.layout.buildDirectory.set(file("${rootProject.layout.buildDirectory.get()}/${subproject.name}"))
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.layout.buildDirectory
+}
