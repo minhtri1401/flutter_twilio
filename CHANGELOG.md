@@ -34,10 +34,15 @@ Initial release of `flutter_twilio`, a ground-up refactor of the original
   `audio_session_error`, `registration_error`, `connection_error`,
   `unknown`). Dart surfaces them as `VoiceException` subtypes
   (`VoiceNotInitializedException`, `VoicePermissionDeniedException`,
-  `VoiceInvalidTokenException`, `VoiceNoActiveCallException`,
-  `VoiceCallAlreadyActiveException`, `TwilioSdkException`). SMS errors
-  surface as `TwilioSmsException` carrying `statusCode`, `twilioCode`, and
-  `moreInfo`.
+  `VoiceInvalidArgumentException`, `VoiceInvalidTokenException`,
+  `VoiceNoActiveCallException`, `VoiceCallAlreadyActiveException`,
+  `TwilioSdkException`, `VoiceAudioSessionException`,
+  `VoiceRegistrationException`, `VoiceConnectionException`). Unknown codes
+  fall through to a base `VoiceException` for forward compatibility.
+  SMS errors surface as `TwilioSmsException` carrying `statusCode`,
+  `twilioCode`, and `moreInfo`; malformed 2xx Twilio responses are
+  caught as `TwilioSmsException(code: 'parse_error')` instead of leaking
+  a raw `TypeError`.
 - **Example app** exercising init, voice lifecycle, and SMS send through
   a single screen.
 - **CI** (`.github/workflows/flutter-build-test.yml`) pinned to Flutter
