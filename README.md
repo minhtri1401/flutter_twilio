@@ -173,3 +173,21 @@ if (!await FlutterTwilio.instance.voice.hasMicPermission()) {
 ## Migration from `twilio_voice`
 
 See [`MIGRATION.md`](MIGRATION.md).
+
+## Changelog
+
+See [`CHANGELOG.md`](CHANGELOG.md).
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). Free to use, modify, and redistribute in
+commercial and non-commercial projects.
+
+## Acknowledgments
+
+`flutter_twilio` is a ground-up refactor of the excellent
+[`twilio_voice`](https://pub.dev/packages/twilio_voice) plugin
+originally authored by [Diego Garcia](https://github.com/diegogarciar) and
+maintained by [Charles Dyason](https://github.com/cybex-dev) and
+contributors. The in-app Android calling architecture, CallKit/PushKit
+integration, and call lifecycle logic inherit from that work.
