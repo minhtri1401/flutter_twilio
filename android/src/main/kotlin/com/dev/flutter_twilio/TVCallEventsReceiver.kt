@@ -1,60 +1,71 @@
 package com.dev.flutter_twilio
 
 import android.util.Log
+import com.dev.flutter_twilio.generated.CallEventType
 import com.dev.flutter_twilio.service.TVCallManager
-import com.dev.flutter_twilio.types.CallDirection
 import com.twilio.voice.Call
 import com.twilio.voice.CallException
 import com.twilio.voice.CallInvite
 import com.twilio.voice.CancelledCallInvite
-import org.json.JSONObject
 
+/**
+ * Translates [TVCallManager] callbacks into typed Pigeon events.
+ *
+ * Snapshots of the current [com.dev.flutter_twilio.generated.ActiveCallDto] are
+ * attached to every event so Dart consumers don't have to call
+ * `getActiveCall()` reactively.
+ */
 internal class TVCallEventsReceiver(
     private val state: TVPluginState,
-    private val emitter: TVEventEmitter
+    private val emitter: TVEventEmitter,
 ) : TVCallManager.TVCallManagerListener {
 
-    companion object { private const val TAG = "TVCallEventsReceiver" }
+    companion object {
+        private const val TAG = "TVCallEventsReceiver"
+    }
 
     override fun onCallInviteReceived(callInvite: CallInvite) {
         Log.d(TAG, "onCallInviteReceived: ${callInvite.callSid}")
-        val from = callInvite.from ?: ""
-        val to = callInvite.to
-        val params = JSONObject().apply {
-            callInvite.customParameters.forEach { (k, v) -> put(k, v) }
-        }.toString()
-        emitter.logEvents("", arrayOf("Incoming", from, to, CallDirection.INCOMING.label, params))
-        emitter.logEvents("", arrayOf("Ringing", from, to, CallDirection.INCOMING.label, params))
+        val snapshot = ActiveCallSnapshotter.snapshot()
+        emitter.emit(CallEventType.INCOMING, snapshot)
+        emitter.emit(CallEventType.RINGING, snapshot)
     }
 
     override fun onCancelledCallInviteReceived(cancelledCallInvite: CancelledCallInvite) {
         Log.d(TAG, "onCancelledCallInviteReceived: ${cancelledCallInvite.callSid}")
-        emitter.logEvent("", "Call Ended")
+        emitter.emit(CallEventType.CALL_ENDED)
     }
 
     override fun onCallRinging(call: Call) {
         Log.d(TAG, "onCallRinging: ${call.sid}")
-        emitter.logEvents("", arrayOf("Ringing", call.from ?: "", call.to ?: "", CallDirection.OUTGOING.label))
+        emitter.emit(CallEventType.RINGING, ActiveCallSnapshotter.snapshot())
     }
 
     override fun onCallConnected(call: Call) {
         Log.d(TAG, "onCallConnected: ${call.sid}")
-        emitter.logEvents("", arrayOf("Connected", call.from ?: "", call.to ?: "", TVCallManager.callDirection.label))
+        emitter.emit(CallEventType.CONNECTED, ActiveCallSnapshotter.snapshot())
     }
 
     override fun onCallConnectFailure(call: Call, error: CallException) {
         Log.e(TAG, "onCallConnectFailure: ${error.errorCode} ${error.message}")
-        emitter.logEvent("Call Error: ${error.errorCode}, ${error.message}")
+        emitter.emitError(
+            code = "twilio_sdk_error",
+            message = error.message ?: "Call connect failure",
+            details = mapOf(
+                "twilioCode" to error.errorCode,
+                "twilioDomain" to "com.twilio.voice",
+            ),
+        )
     }
 
     override fun onCallReconnecting(call: Call, error: CallException) {
         Log.d(TAG, "onCallReconnecting: ${call.sid}")
-        emitter.logEvent("", "Reconnecting")
+        emitter.emit(CallEventType.RECONNECTING, ActiveCallSnapshotter.snapshot())
     }
 
     override fun onCallReconnected(call: Call) {
         Log.d(TAG, "onCallReconnected: ${call.sid}")
-        emitter.logEvent("", "Reconnected")
+        emitter.emit(CallEventType.RECONNECTED, ActiveCallSnapshotter.snapshot())
     }
 
     override fun onCallDisconnected(call: Call, error: CallException?) {
@@ -63,7 +74,17 @@ internal class TVCallEventsReceiver(
         state.isHolding = false
         state.isSpeakerOn = false
         state.isBluetoothOn = false
-        if (error != null) emitter.logEvent("Call Error: ${error.errorCode}, ${error.message}")
-        emitter.logEvent("", "Call Ended")
+        if (error != null) {
+            emitter.emitError(
+                code = "twilio_sdk_error",
+                message = error.message ?: "Call disconnected with error",
+                details = mapOf(
+                    "twilioCode" to error.errorCode,
+                    "twilioDomain" to "com.twilio.voice",
+                ),
+            )
+        }
+        emitter.emit(CallEventType.DISCONNECTED)
+        emitter.emit(CallEventType.CALL_ENDED)
     }
 }

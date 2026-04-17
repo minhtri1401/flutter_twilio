@@ -1,13 +1,66 @@
 package com.dev.flutter_twilio
 
 import android.util.Log
-import com.dev.flutter_twilio.constants.FlutterErrorCodes
-import io.flutter.plugin.common.EventChannel.EventSink
+import com.dev.flutter_twilio.generated.ActiveCallDto
+import com.dev.flutter_twilio.generated.CallErrorDto
+import com.dev.flutter_twilio.generated.CallEventDto
+import com.dev.flutter_twilio.generated.CallEventType
+import com.dev.flutter_twilio.generated.VoiceFlutterApi
 
+/**
+ * Bridges native call-lifecycle events into Flutter via Pigeon's [VoiceFlutterApi].
+ *
+ * Replaces the legacy string-based EventChannel. Consumers call [logEvent] /
+ * [logEvents] with the same descriptions as before; this class parses them into
+ * a typed [CallEventDto].
+ */
 class TVEventEmitter {
 
-    companion object { private const val TAG = "TVEventEmitter" }
-    var sink: EventSink? = null
+    companion object {
+        private const val TAG = "TVEventEmitter"
+    }
+
+    private var api: VoiceFlutterApi? = null
+
+    fun attach(api: VoiceFlutterApi) {
+        this.api = api
+    }
+
+    fun detach() {
+        this.api = null
+    }
+
+    // region Typed emitters
+
+    fun emit(
+        type: CallEventType,
+        activeCall: ActiveCallDto? = null,
+        error: CallErrorDto? = null,
+    ) {
+        val a = api ?: return
+        val dto = CallEventDto(type = type, activeCall = activeCall, error = error)
+        try {
+            a.onCallEvent(dto) { /* delivery result ignored */ }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to emit call event ${type.name}: ${t.message}")
+        }
+    }
+
+    fun emitError(
+        code: String,
+        message: String,
+        details: Map<String?, Any?> = emptyMap(),
+    ) {
+        emit(
+            type = CallEventType.ERROR,
+            error = CallErrorDto(code = code, message = message, details = details),
+        )
+    }
+
+    // endregion
+
+    // region Legacy string API — retained so existing callers don't need a rewrite.
+    // Descriptions are parsed and translated to typed events.
 
     fun logEvent(description: String) = logEvent("LOG", "|", description, false)
 
@@ -19,14 +72,12 @@ class TVEventEmitter {
         description: String,
         isError: Boolean = false
     ) {
-        val s = sink ?: return
         if (isError) {
-            s.error(FlutterErrorCodes.UNAVAILABLE_ERROR, description, null)
-        } else {
-            val message = if (prefix.isEmpty()) description else "$prefix$separator$description"
-            Log.d(TAG, "logEvent: $message")
-            s.success(message)
+            // Unrecoverable error coming from the legacy logging path.
+            emitError(code = "unknown", message = description)
+            return
         }
+        dispatchLegacy(prefix, description)
     }
 
     fun logEvents(descriptions: Array<String>) =
@@ -47,6 +98,73 @@ class TVEventEmitter {
     }
 
     fun logEventPermission(permissionName: String, state: Boolean) {
-        logEvents(arrayOf("PERMISSION", permissionName, state.toString()))
+        // Permission diagnostics are not modeled in the typed event stream.
+        Log.d(TAG, "permission $permissionName granted=$state")
+    }
+
+    // endregion
+
+    private fun dispatchLegacy(prefix: String, description: String) {
+        // Errors come through as either prefix == "LOG" with a "Call Error: ..." body,
+        // or as the description being the bare label.
+        val firstToken = description.substringBefore('|').trim()
+        val lowerFirst = firstToken.lowercase()
+
+        // Explicit "Call Error: code, message" string from legacy code.
+        if (description.startsWith("Call Error:", ignoreCase = true)) {
+            val msg = description.removePrefix("Call Error:").trim()
+            emitError(code = "twilio_sdk_error", message = msg)
+            return
+        }
+
+        val type = when (lowerFirst) {
+            "incoming" -> CallEventType.INCOMING
+            "ringing" -> CallEventType.RINGING
+            "connecting" -> CallEventType.CONNECTING
+            "connected" -> CallEventType.CONNECTED
+            "reconnecting" -> CallEventType.RECONNECTING
+            "reconnected" -> CallEventType.RECONNECTED
+            "disconnected" -> CallEventType.DISCONNECTED
+            "call ended", "callended" -> CallEventType.CALL_ENDED
+            "answer" -> CallEventType.ANSWER
+            "reject" -> CallEventType.REJECT
+            "declined" -> CallEventType.DECLINED
+            "missed", "missedcall", "missed call" -> CallEventType.MISSED_CALL
+            "returningcall", "returning call" -> CallEventType.RETURNING_CALL
+            "hold" -> CallEventType.HOLD
+            "unhold" -> CallEventType.UNHOLD
+            "mute" -> CallEventType.MUTE
+            "unmute" -> CallEventType.UNMUTE
+            "speakeron", "speaker on" -> CallEventType.SPEAKER_ON
+            "speakeroff", "speaker off" -> CallEventType.SPEAKER_OFF
+            "registered" -> CallEventType.REGISTERED
+            "unregistered" -> CallEventType.UNREGISTERED
+            "registrationfailed", "registration failed" -> CallEventType.REGISTRATION_FAILED
+            else -> null
+        }
+
+        if (type == null) {
+            Log.d(TAG, "dropping unmapped legacy event: '$description'")
+            return
+        }
+
+        val snapshot = ActiveCallSnapshotter.snapshot()
+        emit(type, activeCall = snapshot)
     }
 }
+
+/**
+ * Provides the current active-call snapshot as an [ActiveCallDto] for event emission.
+ * Populated by [FlutterTwilioPlugin] when attached; returns `null` otherwise.
+ */
+internal object ActiveCallSnapshotter {
+    @Volatile
+    var provider: (() -> ActiveCallDto?)? = null
+
+    fun snapshot(): ActiveCallDto? = try {
+        provider?.invoke()
+    } catch (t: Throwable) {
+        null
+    }
+}
+

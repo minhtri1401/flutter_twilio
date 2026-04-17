@@ -1,123 +1,108 @@
 package com.dev.flutter_twilio.handler
 
 import android.util.Log
+import com.dev.flutter_twilio.FlutterTwilioError
 import com.dev.flutter_twilio.TVEventEmitter
 import com.dev.flutter_twilio.TVPluginState
-import com.dev.flutter_twilio.constants.Constants
-import com.dev.flutter_twilio.constants.FlutterErrorCodes
 import com.dev.flutter_twilio.service.TVCallManager
 import com.dev.flutter_twilio.types.ContextExtension.hasMicrophoneAccess
-import com.dev.flutter_twilio.types.TVMethodChannels
-import io.flutter.plugin.common.MethodCall
-import io.flutter.plugin.common.MethodChannel
-import org.json.JSONObject
 
+/**
+ * Plain Kotlin handler exposing typed methods for the Pigeon [VoiceHostApi].
+ *
+ * All preconditions (initialized token, mic permission, active call) are
+ * validated up front; failures throw a [FlutterError] produced by
+ * [FlutterTwilioError] so the plugin's Pigeon callback converts them into a
+ * structured error on the Dart side.
+ */
 class TVCallMethodHandler(
     private val state: TVPluginState,
-    private val emitter: TVEventEmitter
+    @Suppress("unused") private val emitter: TVEventEmitter,
 ) {
-    companion object { private const val TAG = "TVCallMethodHandler" }
+    companion object {
+        private const val TAG = "TVCallMethodHandler"
+    }
 
-    fun handle(method: TVMethodChannels, call: MethodCall, result: MethodChannel.Result): Boolean {
-        return when (method) {
-            TVMethodChannels.SEND_DIGITS -> {
-                val digits = call.argument<String>("digits") ?: run {
-                    result.error(FlutterErrorCodes.MALFORMED_ARGUMENTS, "No 'digits' provided or invalid type", null)
-                    return true
-                }
-                TVCallManager.sendDigits(digits)
-                result.success(TVCallManager.hasActiveCall())
-                true
-            }
-            TVMethodChannels.HANGUP -> {
-                Log.d(TAG, "Hanging up")
-                TVCallManager.hangUp()
-                result.success(true)
-                true
-            }
-            TVMethodChannels.ANSWER -> {
-                Log.d(TAG, "Answering call")
-                state.context?.let { TVCallManager.acceptCall(it) }
-                    ?: Log.e(TAG, "Context is null, cannot answer call")
-                result.success(true)
-                true
-            }
-            TVMethodChannels.CALL_SID -> {
-                result.success(TVCallManager.getActiveCallSid())
-                true
-            }
-            TVMethodChannels.IS_ON_CALL -> {
-                result.success(TVCallManager.hasActiveCall())
-                true
-            }
-            TVMethodChannels.MAKE_CALL -> {
-                handlePlaceCall(call, result, connect = false)
-                true
-            }
-            TVMethodChannels.CONNECT -> {
-                handlePlaceCall(call, result, connect = true)
-                true
-            }
-            else -> false
+    fun place(to: String, from: String?, extra: Map<String, String>) {
+        val token = state.accessToken
+            ?: throw FlutterTwilioError.of("not_initialized", "Access token not set")
+        val ctx = state.context
+            ?: throw FlutterTwilioError.of("not_initialized", "Plugin not attached to Flutter engine")
+        if (!ctx.hasMicrophoneAccess()) {
+            throw FlutterTwilioError.of(
+                "missing_permission",
+                "RECORD_AUDIO permission is required to place calls",
+                mapOf("permission" to "RECORD_AUDIO"),
+            )
+        }
+
+        val fromValue = from ?: ""
+        Log.d(TAG, "place: from='$fromValue' to='$to' extras=$extra")
+
+        val params = HashMap<String, String>(extra)
+        val ok = TVCallManager.makeCall(ctx, token, to, fromValue, params)
+        if (!ok) {
+            throw FlutterTwilioError.of(
+                "connection_error",
+                "Voice.connect returned null — unable to start outgoing call",
+            )
         }
     }
 
-    private fun handlePlaceCall(call: MethodCall, result: MethodChannel.Result, connect: Boolean) {
-        val args = call.arguments as? Map<*, *> ?: run {
-            result.error(FlutterErrorCodes.MALFORMED_ARGUMENTS, "Arguments should be a Map<*, *>", null)
-            return
+    fun answer() {
+        val ctx = state.context
+            ?: throw FlutterTwilioError.of("not_initialized", "Plugin not attached to Flutter engine")
+        if (TVCallManager.activeCallInvite == null) {
+            throw FlutterTwilioError.of("no_active_call", "No pending call invite to answer")
         }
-
-        emitter.logEvent("Making new call via ${if (connect) "connect" else "makeCall"}")
-
-        val params = mutableMapOf<String, String>()
-        for ((key, value) in args) {
-            if (key != Constants.PARAM_TO && key != Constants.PARAM_FROM) {
-                params[key.toString()] = value.toString()
-            }
+        val ok = TVCallManager.acceptCall(ctx)
+        if (!ok) {
+            throw FlutterTwilioError.of("connection_error", "Failed to accept incoming call")
         }
+    }
 
-        val from: String
-        val to: String
-        if (connect) {
-            from = call.argument<String>(Constants.PARAM_FROM).also {
-                if (it == null) emitter.logEvent("No 'from' provided or invalid type, ignoring.")
-            } ?: ""
-            to = call.argument<String>(Constants.PARAM_TO).also {
-                if (it == null) emitter.logEvent("No 'to' provided or invalid type, ignoring.")
-            } ?: ""
-            Log.d(TAG, "calling with params: from='$from' to='$to' params=${JSONObject(args)}")
-        } else {
-            from = call.argument<String>(Constants.PARAM_FROM) ?: run {
-                result.error(FlutterErrorCodes.MALFORMED_ARGUMENTS, "No '${Constants.PARAM_FROM}' provided or invalid type", null)
-                return
-            }
-            to = call.argument<String>(Constants.PARAM_TO) ?: run {
-                result.error(FlutterErrorCodes.MALFORMED_ARGUMENTS, "No '${Constants.PARAM_TO}' provided or invalid type", null)
-                return
-            }
-            Log.d(TAG, "calling $from -> $to")
+    fun reject() {
+        val ctx = state.context
+            ?: throw FlutterTwilioError.of("not_initialized", "Plugin not attached to Flutter engine")
+        if (TVCallManager.activeCallInvite == null) {
+            throw FlutterTwilioError.of("no_active_call", "No pending call invite to reject")
         }
+        val ok = TVCallManager.rejectCall(ctx)
+        if (!ok) {
+            throw FlutterTwilioError.of("connection_error", "Failed to reject incoming call")
+        }
+    }
 
-        val token = state.accessToken ?: run {
-            result.error(FlutterErrorCodes.MALFORMED_ARGUMENTS, "No accessToken set, are you registered?", null)
-            return
+    fun hangUp() {
+        requireActive()
+        val ok = TVCallManager.hangUp()
+        if (!ok) {
+            throw FlutterTwilioError.of("no_active_call", "No active call to hang up")
         }
-        val ctx = state.context ?: run {
-            Log.e(TAG, "Context is null, cannot place call")
-            result.success(false)
-            return
-        }
-        if (!ctx.hasMicrophoneAccess()) {
-            Log.e(TAG, "No microphone permission, call requestMicrophonePermission() first")
-            result.success(false)
-            return
-        }
+    }
 
-        val callParams = HashMap<String, String>(params)
-        if (to.isNotEmpty()) callParams[Constants.PARAM_TO] = to
-        if (from.isNotEmpty()) callParams[Constants.PARAM_FROM] = from
+    fun setMuted(muted: Boolean) {
+        requireActive()
+        TVCallManager.toggleMute(muted)
+        state.isMuted = muted
+    }
 
-        result.success(TVCallManager.makeCall(ctx, token, to, from, callParams))
+    fun setOnHold(onHold: Boolean) {
+        requireActive()
+        TVCallManager.toggleHold(onHold)
+        state.isHolding = onHold
+    }
+
+    fun sendDigits(digits: String) {
+        requireActive()
+        TVCallManager.sendDigits(digits)
+    }
+
+    fun getActiveCall(): TVCallManager? = if (TVCallManager.hasActiveCall()) TVCallManager else null
+
+    private fun requireActive() {
+        if (!TVCallManager.hasActiveCall()) {
+            throw FlutterTwilioError.of("no_active_call", "No active call")
+        }
     }
 }

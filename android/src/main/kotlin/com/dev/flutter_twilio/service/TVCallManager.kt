@@ -28,6 +28,26 @@ object TVCallManager : Call.Listener {
     var callDirection: CallDirection = CallDirection.OUTGOING
         private set
 
+    /** Epoch millis when the current call was placed / accepted. `0` when no call is active. */
+    @Volatile
+    var callStartedAtMillis: Long = 0L
+        private set
+
+    /** Caller identifier of the current call (outgoing: from our identity; incoming: remote). */
+    @Volatile
+    var activeCallFrom: String = ""
+        private set
+
+    /** Callee identifier of the current call. */
+    @Volatile
+    var activeCallTo: String = ""
+        private set
+
+    /** Extra parameters attached to the active call (incoming invite params or outgoing extras). */
+    @Volatile
+    var activeCustomParameters: Map<String, String> = emptyMap()
+        private set
+
     var listener: TVCallManagerListener? = null
         set(value) {
             field = value
@@ -57,6 +77,9 @@ object TVCallManager : Call.Listener {
         Log.d(TAG, "handleCallInvite: ${callInvite.callSid}")
         callDirection = CallDirection.INCOMING
         activeCallInvite = callInvite
+        activeCallFrom = callInvite.from ?: ""
+        activeCallTo = callInvite.to ?: ""
+        activeCustomParameters = callInvite.customParameters.toMap()
         listener?.onCallInviteReceived(callInvite)
     }
 
@@ -81,6 +104,7 @@ object TVCallManager : Call.Listener {
         }
         activeCall = call
         activeCallInvite = null
+        callStartedAtMillis = System.currentTimeMillis()
         TVCallAudioService.startService(context, invite.from ?: "Unknown")
         _audioManager?.requestAudioFocus()
         return true
@@ -94,6 +118,9 @@ object TVCallManager : Call.Listener {
         Log.d(TAG, "rejectCall: ${invite.callSid}")
         invite.reject(context)
         activeCallInvite = null
+        activeCustomParameters = emptyMap()
+        activeCallFrom = ""
+        activeCallTo = ""
         return true
     }
 
@@ -110,6 +137,10 @@ object TVCallManager : Call.Listener {
         val call = Voice.connect(context, connectOptions, this)
         if (call != null) {
             activeCall = call
+            callStartedAtMillis = System.currentTimeMillis()
+            activeCallFrom = from ?: ""
+            activeCallTo = to ?: ""
+            activeCustomParameters = params.filterKeys { it != "To" && it != "From" }
             TVCallAudioService.startService(context, to ?: "Unknown")
             _audioManager?.requestAudioFocus()
         } else {
@@ -181,6 +212,10 @@ object TVCallManager : Call.Listener {
     private fun cleanup() {
         activeCall = null
         activeCallInvite = null
+        callStartedAtMillis = 0L
+        activeCallFrom = ""
+        activeCallTo = ""
+        activeCustomParameters = emptyMap()
         _audioManager?.reset()
         _audioManager?.abandonAudioFocus()
         appContext?.let { TVCallAudioService.stopService(it) }

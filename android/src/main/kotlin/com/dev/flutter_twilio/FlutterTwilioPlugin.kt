@@ -1,38 +1,45 @@
 package com.dev.flutter_twilio
 
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.util.Log
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.dev.flutter_twilio.generated.ActiveCallDto
+import com.dev.flutter_twilio.generated.CallDirection
+import com.dev.flutter_twilio.generated.FlutterError
+import com.dev.flutter_twilio.generated.PlaceCallRequest
+import com.dev.flutter_twilio.generated.VoiceFlutterApi
+import com.dev.flutter_twilio.generated.VoiceHostApi
 import com.dev.flutter_twilio.handler.TVAudioMethodHandler
 import com.dev.flutter_twilio.handler.TVCallMethodHandler
-import com.dev.flutter_twilio.handler.TVConfigMethodHandler
 import com.dev.flutter_twilio.handler.TVPermissionMethodHandler
 import com.dev.flutter_twilio.handler.TVRegistrationMethodHandler
-import com.dev.flutter_twilio.receivers.TVBroadcastReceiver
 import com.dev.flutter_twilio.service.TVCallManager
 import com.dev.flutter_twilio.storage.StorageImpl
-import com.dev.flutter_twilio.types.TVMethodChannels
+import com.twilio.voice.CallException
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.FlutterPlugin.FlutterPluginBinding
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
-import io.flutter.plugin.common.BinaryMessenger
-import io.flutter.plugin.common.EventChannel
-import io.flutter.plugin.common.EventChannel.EventSink
-import io.flutter.plugin.common.MethodCall
-import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler
-import io.flutter.plugin.common.PluginRegistry.NewIntentListener
 import io.flutter.plugin.common.PluginRegistry.RequestPermissionsResultListener
 
-class FlutterTwilioPlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamHandler,
-    ActivityAware, NewIntentListener, RequestPermissionsResultListener {
+/**
+ * Entry point for the `flutter_twilio` Android plugin.
+ *
+ * Implements the Pigeon-generated [VoiceHostApi] and delegates each typed
+ * method to a single-purpose handler. All errors are translated via
+ * [FlutterTwilioError] so Dart observers receive the stable codes documented
+ * in the spec.
+ *
+ * Asynchronous call-lifecycle events are pushed back to Dart via the
+ * [VoiceFlutterApi] installed on [TVEventEmitter] — never via an
+ * [io.flutter.plugin.common.EventChannel].
+ */
+class FlutterTwilioPlugin :
+    FlutterPlugin,
+    ActivityAware,
+    RequestPermissionsResultListener,
+    VoiceHostApi {
 
     companion object {
         private const val TAG = "FlutterTwilioPlugin"
-        private const val kCHANNEL_NAME = "twilio_voice"
     }
 
     private val state = TVPluginState()
@@ -43,136 +50,177 @@ class FlutterTwilioPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Strea
     private lateinit var audioHandler: TVAudioMethodHandler
     private lateinit var permissionHandler: TVPermissionMethodHandler
     private lateinit var registrationHandler: TVRegistrationMethodHandler
-    private lateinit var configHandler: TVConfigMethodHandler
 
-    private var methodChannel: MethodChannel? = null
-    private var eventChannel: EventChannel? = null
-    private var broadcastReceiver: TVBroadcastReceiver? = null
-    private var isReceiverRegistered = false
+    private var flutterApi: VoiceFlutterApi? = null
 
-    private fun register(messenger: BinaryMessenger, context: Context) {
+    override fun onAttachedToEngine(binding: FlutterPluginBinding) {
+        val context = binding.applicationContext
         state.context = context
         state.storage = StorageImpl(context)
-        methodChannel = MethodChannel(messenger, "$kCHANNEL_NAME/messages").also {
-            it.setMethodCallHandler(this)
-        }
-        eventChannel = EventChannel(messenger, "$kCHANNEL_NAME/events").also {
-            it.setStreamHandler(this)
-        }
+
+        val messenger = binding.binaryMessenger
+        VoiceHostApi.setUp(messenger, this)
+        flutterApi = VoiceFlutterApi(messenger).also { emitter.attach(it) }
+
         callHandler = TVCallMethodHandler(state, emitter)
         audioHandler = TVAudioMethodHandler(state, emitter)
         permissionHandler = TVPermissionMethodHandler(state, emitter)
         registrationHandler = TVRegistrationMethodHandler(state, emitter)
-        configHandler = TVConfigMethodHandler(state, emitter)
-        broadcastReceiver = TVBroadcastReceiver(this)
+
         TVCallManager.init(context)
         TVCallManager.listener = callEventsReceiver
-    }
 
-    override fun onAttachedToEngine(binding: FlutterPluginBinding) {
-        register(binding.binaryMessenger, binding.applicationContext)
+        ActiveCallSnapshotter.provider = { snapshotActiveCall() }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPluginBinding) {
-        Log.d(TAG, "Detached from Flutter engine")
+        Log.d(TAG, "onDetachedFromEngine")
+        VoiceHostApi.setUp(binding.binaryMessenger, null)
+        emitter.detach()
+        flutterApi = null
         TVCallManager.listener = null
+        ActiveCallSnapshotter.provider = null
         state.context = null
-        methodChannel?.setMethodCallHandler(null)
-        methodChannel = null
-        eventChannel?.setStreamHandler(null)
-        eventChannel = null
     }
 
-    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
-        if (call.arguments !is Map<*, *>) {
-            result.error("MALFORMED_ARGUMENTS", "Arguments must be a Map<String, Object>", null)
-            return
-        }
-        val method = TVMethodChannels.fromValue(call.method) ?: run {
-            result.notImplemented()
-            return
-        }
-        val handled = callHandler.handle(method, call, result) ||
-            audioHandler.handle(method, call, result) ||
-            permissionHandler.handle(method, call, result) ||
-            registrationHandler.handle(method, call, result) ||
-            configHandler.handle(method, call, result)
-        if (!handled) result.notImplemented()
-    }
-
-    override fun onListen(arguments: Any?, events: EventSink?) {
-        Log.i(TAG, "Setting event sink")
-        emitter.sink = events
-    }
-
-    override fun onCancel(arguments: Any?) {
-        Log.i(TAG, "Removing event sink")
-        emitter.sink = null
-    }
+    // region ActivityAware
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
-        Log.d(TAG, "onAttachedToActivity")
         state.activity = binding.activity
-        binding.addOnNewIntentListener(this)
         binding.addRequestPermissionsResultListener(this)
-        registerReceiver()
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
-        Log.d(TAG, "onDetachedFromActivityForConfigChanges")
-        unregisterReceiver()
         state.activity = null
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
-        Log.d(TAG, "onReattachedToActivityForConfigChanges")
         state.activity = binding.activity
         binding.addRequestPermissionsResultListener(this)
-        binding.addOnNewIntentListener(this)
-        registerReceiver()
     }
 
     override fun onDetachedFromActivity() {
-        Log.d(TAG, "onDetachedFromActivity")
-        unregisterReceiver()
         state.activity = null
     }
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<String>,
-        grantResults: IntArray
+        grantResults: IntArray,
     ): Boolean = permissionHandler.onPermissionsResult(requestCode, permissions, grantResults)
 
-    override fun onNewIntent(intent: Intent): Boolean = false
+    // endregion
 
-    private fun registerReceiver() {
-        if (isReceiverRegistered) return
-        val ctx = state.context ?: return
-        val receiver = broadcastReceiver ?: return
-        val filter = IntentFilter().apply { addAction(TVBroadcastReceiver.ACTION_INCOMING_CALL_IGNORED) }
-        LocalBroadcastManager.getInstance(ctx).registerReceiver(receiver, filter)
-        isReceiverRegistered = true
-    }
+    // region VoiceHostApi
 
-    private fun unregisterReceiver() {
-        if (!isReceiverRegistered) return
-        state.context?.let { ctx ->
-            broadcastReceiver?.let { r ->
-                LocalBroadcastManager.getInstance(ctx).unregisterReceiver(r)
-            }
+    override fun setAccessToken(token: String, callback: (Result<Unit>) -> Unit) =
+        guard(callback) { registrationHandler.setAccessToken(token) }
+
+    override fun register(callback: (Result<Unit>) -> Unit) =
+        guard(callback) { registrationHandler.register() }
+
+    override fun unregister(callback: (Result<Unit>) -> Unit) =
+        guard(callback) { registrationHandler.unregister() }
+
+    override fun place(request: PlaceCallRequest, callback: (Result<ActiveCallDto>) -> Unit) =
+        guard(callback) {
+            val extra: Map<String, String> = request.extraParameters
+                ?.filter { (k, v) -> k != null && v != null }
+                ?.mapKeys { (k, _) -> k!! }
+                ?.mapValues { (_, v) -> v!! }
+                ?: emptyMap()
+            callHandler.place(to = request.to, from = request.from, extra = extra)
+            snapshotActiveCall()
+                ?: throw FlutterTwilioError.of(
+                    "connection_error",
+                    "Outgoing call placed but no active-call snapshot is available",
+                )
         }
-        isReceiverRegistered = false
-    }
 
-    fun handleBroadcastIntent(intent: Intent) {
-        when (intent.action) {
-            TVBroadcastReceiver.ACTION_INCOMING_CALL_IGNORED -> {
-                val reason = intent.getStringArrayExtra(TVBroadcastReceiver.EXTRA_INCOMING_CALL_IGNORED_REASON) ?: arrayOf()
-                val handle = intent.getStringExtra(TVBroadcastReceiver.EXTRA_CALL_HANDLE) ?: "N/A"
-                Log.w(TAG, "Incoming call ignored. Handle: $handle, Reasons: ${reason.joinToString()}")
+    override fun answer(callback: (Result<Unit>) -> Unit) =
+        guard(callback) { callHandler.answer() }
+
+    override fun reject(callback: (Result<Unit>) -> Unit) =
+        guard(callback) { callHandler.reject() }
+
+    override fun hangUp(callback: (Result<Unit>) -> Unit) =
+        guard(callback) { callHandler.hangUp() }
+
+    override fun setMuted(muted: Boolean, callback: (Result<Unit>) -> Unit) =
+        guard(callback) { callHandler.setMuted(muted) }
+
+    override fun setOnHold(onHold: Boolean, callback: (Result<Unit>) -> Unit) =
+        guard(callback) { callHandler.setOnHold(onHold) }
+
+    override fun setSpeaker(onSpeaker: Boolean, callback: (Result<Unit>) -> Unit) =
+        guard(callback) { audioHandler.setSpeaker(onSpeaker) }
+
+    override fun sendDigits(digits: String, callback: (Result<Unit>) -> Unit) =
+        guard(callback) { callHandler.sendDigits(digits) }
+
+    override fun getActiveCall(callback: (Result<ActiveCallDto?>) -> Unit) =
+        guard(callback) { snapshotActiveCall() }
+
+    override fun hasMicPermission(callback: (Result<Boolean>) -> Unit) =
+        guard(callback) { permissionHandler.hasMicPermission() }
+
+    override fun requestMicPermission(callback: (Result<Boolean>) -> Unit) {
+        try {
+            permissionHandler.requestMicPermission { granted ->
+                callback(Result.success(granted))
             }
-            else -> Log.d(TAG, "handleBroadcastIntent: unhandled action ${intent.action}")
+        } catch (t: Throwable) {
+            callback(Result.failure(mapError(t)))
         }
     }
+
+    // endregion
+
+    // region Helpers
+
+    private inline fun <T> guard(
+        noinline cb: (Result<T>) -> Unit,
+        crossinline body: () -> T,
+    ) {
+        try {
+            cb(Result.success(body()))
+        } catch (t: Throwable) {
+            cb(Result.failure(mapError(t)))
+        }
+    }
+
+    private fun mapError(t: Throwable): Throwable = when (t) {
+        is FlutterError -> t
+        is CallException -> FlutterTwilioError.fromTwilio(t)
+        else -> FlutterTwilioError.unknown(t)
+    }
+
+    /**
+     * Build an [ActiveCallDto] from the current [TVCallManager] snapshot,
+     * or `null` when no call is active or pending.
+     */
+    private fun snapshotActiveCall(): ActiveCallDto? {
+        if (!TVCallManager.hasActiveCall()) return null
+        val sid = TVCallManager.getActiveCallSid() ?: "unknown"
+        val direction = when (TVCallManager.callDirection) {
+            com.dev.flutter_twilio.types.CallDirection.INCOMING -> CallDirection.INCOMING
+            com.dev.flutter_twilio.types.CallDirection.OUTGOING -> CallDirection.OUTGOING
+        }
+        val custom: Map<String?, String?> = TVCallManager.activeCustomParameters
+            .mapKeys { (k, _) -> k as String? }
+            .mapValues { (_, v) -> v as String? }
+        return ActiveCallDto(
+            sid = sid,
+            from = TVCallManager.activeCallFrom,
+            to = TVCallManager.activeCallTo,
+            direction = direction,
+            startedAt = TVCallManager.callStartedAtMillis,
+            isMuted = state.isMuted,
+            isOnHold = state.isHolding,
+            isOnSpeaker = TVCallManager.audioManager?.isSpeakerOn ?: state.isSpeakerOn,
+            customParameters = custom,
+        )
+    }
+
+    // endregion
 }
