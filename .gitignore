@@ -37,6 +37,15 @@ android/local.properties
 # Apple files
 .DS_Store
 
+# Internal planning / design notes — not part of the published package.
+docs/superpowers/
+
+# Claude Code local settings
+.claude/
+
+# FVM local SDK symlink + config
+.fvm/
+
 # Flutter/Dart/Pub related
 build/
 .dart_tool/
