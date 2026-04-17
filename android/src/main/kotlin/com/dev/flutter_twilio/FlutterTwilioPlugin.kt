@@ -14,6 +14,7 @@ import com.dev.flutter_twilio.handler.TVRegistrationMethodHandler
 import com.dev.flutter_twilio.service.TVCallManager
 import com.dev.flutter_twilio.storage.StorageImpl
 import com.twilio.voice.CallException
+import com.twilio.voice.RegistrationException
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.FlutterPlugin.FlutterPluginBinding
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -192,6 +193,7 @@ class FlutterTwilioPlugin :
     private fun mapError(t: Throwable): Throwable = when (t) {
         is FlutterError -> t
         is CallException -> FlutterTwilioError.fromTwilio(t)
+        is RegistrationException -> FlutterTwilioError.fromRegistration(t)
         else -> FlutterTwilioError.unknown(t)
     }
 

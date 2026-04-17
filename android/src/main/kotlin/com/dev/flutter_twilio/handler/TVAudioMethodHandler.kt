@@ -25,7 +25,30 @@ class TVAudioMethodHandler(
                 "audio_session_error",
                 "Audio manager not initialized",
             )
-        audio.setSpeaker(onSpeaker)
+        try {
+            audio.setSpeaker(onSpeaker)
+        } catch (e: IllegalStateException) {
+            throw FlutterTwilioError.of(
+                "audio_session_error",
+                "Failed to toggle speaker routing: ${e.message}",
+                mapOf("nativeMessage" to e.message),
+            )
+        } catch (e: SecurityException) {
+            throw FlutterTwilioError.of(
+                "audio_session_error",
+                "Audio routing change was rejected: ${e.message}",
+                mapOf("nativeMessage" to e.message),
+            )
+        } catch (e: RuntimeException) {
+            // AudioManager can throw a handful of undocumented RuntimeExceptions
+            // when the audio session is in a bad state; classify them all as
+            // audio_session_error rather than leaking them as `unknown`.
+            throw FlutterTwilioError.of(
+                "audio_session_error",
+                "AudioManager rejected setSpeaker($onSpeaker): ${e.message}",
+                mapOf("nativeMessage" to e.message),
+            )
+        }
         state.isSpeakerOn = onSpeaker
     }
 }

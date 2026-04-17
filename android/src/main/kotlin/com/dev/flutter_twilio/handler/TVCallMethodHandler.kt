@@ -24,6 +24,12 @@ class TVCallMethodHandler(
     }
 
     fun place(to: String, from: String?, extra: Map<String, String>) {
+        if (to.isBlank()) {
+            throw FlutterTwilioError.of(
+                "invalid_argument",
+                "Destination 'to' must not be empty",
+            )
+        }
         val token = state.accessToken
             ?: throw FlutterTwilioError.of("not_initialized", "Access token not set")
         val ctx = state.context
@@ -35,18 +41,20 @@ class TVCallMethodHandler(
                 mapOf("permission" to "RECORD_AUDIO"),
             )
         }
+        if (TVCallManager.hasActiveCall()) {
+            throw FlutterTwilioError.of(
+                "call_already_active",
+                "Another call is already active.",
+            )
+        }
 
         val fromValue = from ?: ""
         Log.d(TAG, "place: from='$fromValue' to='$to' extras=$extra")
 
         val params = HashMap<String, String>(extra)
-        val ok = TVCallManager.makeCall(ctx, token, to, fromValue, params)
-        if (!ok) {
-            throw FlutterTwilioError.of(
-                "connection_error",
-                "Voice.connect returned null — unable to start outgoing call",
-            )
-        }
+        // TVCallManager.makeCall throws CallException on Twilio SDK failure;
+        // FlutterTwilioPlugin.guard maps that to a twilio_sdk_error.
+        TVCallManager.makeCall(ctx, token, to, fromValue, params)
     }
 
     fun answer() {
@@ -54,6 +62,13 @@ class TVCallMethodHandler(
             ?: throw FlutterTwilioError.of("not_initialized", "Plugin not attached to Flutter engine")
         if (TVCallManager.activeCallInvite == null) {
             throw FlutterTwilioError.of("no_active_call", "No pending call invite to answer")
+        }
+        // There is already an active connected call distinct from the pending invite.
+        if (TVCallManager.activeCall != null) {
+            throw FlutterTwilioError.of(
+                "call_already_active",
+                "Another call is already active.",
+            )
         }
         val ok = TVCallManager.acceptCall(ctx)
         if (!ok) {
@@ -94,6 +109,20 @@ class TVCallMethodHandler(
     }
 
     fun sendDigits(digits: String) {
+        if (digits.isEmpty()) {
+            throw FlutterTwilioError.of(
+                "invalid_argument",
+                "digits must not be empty",
+            )
+        }
+        // Only DTMF digits (0-9, *, #, A-D, plus optional pauses ",") are valid.
+        val allowed = Regex("^[0-9*#A-Da-d,]+$")
+        if (!allowed.matches(digits)) {
+            throw FlutterTwilioError.of(
+                "invalid_argument",
+                "digits contains invalid DTMF characters: '$digits'",
+            )
+        }
         requireActive()
         TVCallManager.sendDigits(digits)
     }

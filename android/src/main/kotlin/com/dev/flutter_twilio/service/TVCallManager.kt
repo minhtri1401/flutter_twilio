@@ -124,29 +124,47 @@ object TVCallManager : Call.Listener {
         return true
     }
 
-    fun makeCall(context: Context, accessToken: String, to: String?, from: String?, params: Map<String, String>): Boolean {
+    /**
+     * Starts an outgoing Twilio call. Throws if the Twilio SDK rejects the
+     * request — the Pigeon guard in [com.dev.flutter_twilio.FlutterTwilioPlugin]
+     * maps [CallException] / [RuntimeException] into stable error codes for
+     * Dart.
+     */
+    fun makeCall(context: Context, accessToken: String, to: String?, from: String?, params: Map<String, String>) {
         Log.d(TAG, "makeCall: to=$to, from=$from")
         callDirection = CallDirection.OUTGOING
         val paramsWithIdentity = HashMap<String, String>(params).apply {
             if (!to.isNullOrEmpty()) put("To", to)
             if (!from.isNullOrEmpty()) put("From", from)
         }
-        val connectOptions = ConnectOptions.Builder(accessToken)
-            .params(paramsWithIdentity)
-            .build()
-        val call = Voice.connect(context, connectOptions, this)
-        if (call != null) {
-            activeCall = call
-            callStartedAtMillis = System.currentTimeMillis()
-            activeCallFrom = from ?: ""
-            activeCallTo = to ?: ""
-            activeCustomParameters = params.filterKeys { it != "To" && it != "From" }
-            TVCallAudioService.startService(context, to ?: "Unknown")
-            _audioManager?.requestAudioFocus()
-        } else {
-            Log.e(TAG, "makeCall: Voice.connect() returned null")
+        val connectOptions = try {
+            ConnectOptions.Builder(accessToken)
+                .params(paramsWithIdentity)
+                .build()
+        } catch (t: Throwable) {
+            Log.e(TAG, "makeCall: failed to build ConnectOptions: ${t.message}")
+            throw t
         }
-        return call != null
+        val call = try {
+            Voice.connect(context, connectOptions, this)
+        } catch (t: Throwable) {
+            Log.e(TAG, "makeCall: Voice.connect threw: ${t.message}")
+            throw t
+        }
+        if (call == null) {
+            Log.e(TAG, "makeCall: Voice.connect() returned null")
+            throw com.dev.flutter_twilio.FlutterTwilioError.of(
+                "connection_error",
+                "Voice.connect returned null — unable to start outgoing call",
+            )
+        }
+        activeCall = call
+        callStartedAtMillis = System.currentTimeMillis()
+        activeCallFrom = from ?: ""
+        activeCallTo = to ?: ""
+        activeCustomParameters = params.filterKeys { it != "To" && it != "From" }
+        TVCallAudioService.startService(context, to ?: "Unknown")
+        _audioManager?.requestAudioFocus()
     }
 
     fun hangUp(): Boolean {

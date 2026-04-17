@@ -39,7 +39,16 @@ class TVRegistrationMethodHandler(
             ?: throw FlutterTwilioError.of("not_initialized", "Access token not set")
         fetchFcmToken { token ->
             state.fcmToken = token
-            registerForCallInvites(accessToken, token)
+            try {
+                registerForCallInvites(accessToken, token)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Voice.register threw", t)
+                emitter.emitError(
+                    code = "registration_error",
+                    message = t.message ?: "Voice.register failed",
+                    details = mapOf("cause" to t::class.java.name),
+                )
+            }
         }
     }
 
@@ -54,12 +63,30 @@ class TVRegistrationMethodHandler(
             ?: throw FlutterTwilioError.of("not_initialized", "Access token not set")
         val cached = state.fcmToken
         if (cached != null) {
-            unregisterForCallInvites(accessToken, cached)
+            try {
+                unregisterForCallInvites(accessToken, cached)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Voice.unregister threw", t)
+                emitter.emitError(
+                    code = "registration_error",
+                    message = t.message ?: "Voice.unregister failed",
+                    details = mapOf("cause" to t::class.java.name),
+                )
+            }
             return
         }
         fetchFcmToken { token ->
             state.fcmToken = token
-            unregisterForCallInvites(accessToken, token)
+            try {
+                unregisterForCallInvites(accessToken, token)
+            } catch (t: Throwable) {
+                Log.e(TAG, "Voice.unregister threw", t)
+                emitter.emitError(
+                    code = "registration_error",
+                    message = t.message ?: "Voice.unregister failed",
+                    details = mapOf("cause" to t::class.java.name),
+                )
+            }
         }
     }
 
@@ -102,14 +129,7 @@ class TVRegistrationMethodHandler(
                     fcmToken: String,
                 ) {
                     Log.e(TAG, "register error: ${e.errorCode} ${e.message}")
-                    emitter.emitError(
-                        code = "registration_error",
-                        message = e.message ?: "Registration failed",
-                        details = mapOf(
-                            "twilioCode" to e.errorCode,
-                            "twilioDomain" to "com.twilio.voice",
-                        ),
-                    )
+                    emitRegistrationError(e, fallbackMessage = "Registration failed")
                 }
             },
         )
@@ -132,16 +152,30 @@ class TVRegistrationMethodHandler(
                     fcmToken: String,
                 ) {
                     Log.e(TAG, "unregister error: ${e.errorCode} ${e.message}")
-                    emitter.emitError(
-                        code = "registration_error",
-                        message = e.message ?: "Unregistration failed",
-                        details = mapOf(
-                            "twilioCode" to e.errorCode,
-                            "twilioDomain" to "com.twilio.voice",
-                        ),
-                    )
+                    emitRegistrationError(e, fallbackMessage = "Unregistration failed")
                 }
             },
+        )
+    }
+
+    /**
+     * Maps Twilio [RegistrationException] to the Dart error taxonomy. Access
+     * token related error codes (20101, 20104, 20157) surface as
+     * `invalid_token`; everything else is a generic `registration_error`.
+     */
+    private fun emitRegistrationError(e: RegistrationException, fallbackMessage: String) {
+        val code = if (e.errorCode in FlutterTwilioError.TOKEN_ERROR_CODES) {
+            "invalid_token"
+        } else {
+            "registration_error"
+        }
+        emitter.emitError(
+            code = code,
+            message = e.message ?: fallbackMessage,
+            details = mapOf(
+                "twilioCode" to e.errorCode,
+                "twilioDomain" to "com.twilio.voice",
+            ),
         )
     }
 }

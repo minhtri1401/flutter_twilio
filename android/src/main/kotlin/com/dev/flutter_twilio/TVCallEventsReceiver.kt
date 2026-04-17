@@ -48,18 +48,15 @@ internal class TVCallEventsReceiver(
 
     override fun onCallConnectFailure(call: Call, error: CallException) {
         Log.e(TAG, "onCallConnectFailure: ${error.errorCode} ${error.message}")
-        emitter.emitError(
-            code = "twilio_sdk_error",
-            message = error.message ?: "Call connect failure",
-            details = mapOf(
-                "twilioCode" to error.errorCode,
-                "twilioDomain" to "com.twilio.voice",
-            ),
-        )
+        emitTwilioError(error, fallbackMessage = "Call connect failure")
     }
 
     override fun onCallReconnecting(call: Call, error: CallException) {
         Log.d(TAG, "onCallReconnecting: ${call.sid}")
+        // A reconnecting event from Twilio is the canonical connection_error
+        // signal (signaling / transport interruption). Surface it as both an
+        // error and a RECONNECTING event so Dart can branch either way.
+        emitTwilioError(error, fallbackMessage = "Call reconnecting", preferConnectionError = true)
         emitter.emit(CallEventType.RECONNECTING, ActiveCallSnapshotter.snapshot())
     }
 
@@ -75,16 +72,41 @@ internal class TVCallEventsReceiver(
         state.isSpeakerOn = false
         state.isBluetoothOn = false
         if (error != null) {
-            emitter.emitError(
-                code = "twilio_sdk_error",
-                message = error.message ?: "Call disconnected with error",
-                details = mapOf(
-                    "twilioCode" to error.errorCode,
-                    "twilioDomain" to "com.twilio.voice",
-                ),
-            )
+            emitTwilioError(error, fallbackMessage = "Call disconnected with error")
         }
         emitter.emit(CallEventType.DISCONNECTED)
         emitter.emit(CallEventType.CALL_ENDED)
+    }
+
+    /**
+     * Maps a Twilio [CallException] into the Dart error taxonomy:
+     *  * access-token related codes (20101, 20104, 20157) → `invalid_token`
+     *  * signaling range (53xxx) → `connection_error`
+     *  * everything else → `twilio_sdk_error`
+     *
+     * Set [preferConnectionError] to surface non-coded / ambiguous transport
+     * errors (e.g. from `onCallReconnecting`) as `connection_error` regardless
+     * of error code.
+     */
+    private fun emitTwilioError(
+        error: CallException,
+        fallbackMessage: String,
+        preferConnectionError: Boolean = false,
+    ) {
+        val twilioCode = error.errorCode
+        val code = when {
+            twilioCode in com.dev.flutter_twilio.FlutterTwilioError.TOKEN_ERROR_CODES -> "invalid_token"
+            com.dev.flutter_twilio.FlutterTwilioError.isSignalingError(twilioCode) -> "connection_error"
+            preferConnectionError -> "connection_error"
+            else -> "twilio_sdk_error"
+        }
+        emitter.emitError(
+            code = code,
+            message = error.message ?: fallbackMessage,
+            details = mapOf(
+                "twilioCode" to twilioCode,
+                "twilioDomain" to "com.twilio.voice",
+            ),
+        )
     }
 }

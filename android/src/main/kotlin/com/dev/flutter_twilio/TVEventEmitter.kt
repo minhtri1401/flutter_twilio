@@ -1,5 +1,7 @@
 package com.dev.flutter_twilio
 
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.dev.flutter_twilio.generated.ActiveCallDto
 import com.dev.flutter_twilio.generated.CallErrorDto
@@ -21,6 +23,7 @@ class TVEventEmitter {
     }
 
     private var api: VoiceFlutterApi? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     fun attach(api: VoiceFlutterApi) {
         this.api = api
@@ -30,6 +33,17 @@ class TVEventEmitter {
         this.api = null
     }
 
+    /**
+     * Pigeon's [VoiceFlutterApi.onCallEvent] must be called on the main/UI
+     * thread. Twilio SDK callbacks, FCM listeners, and the Firebase messaging
+     * token fetch all deliver on background threads, so every outbound event
+     * is marshalled here.
+     */
+    private fun postToMain(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) block()
+        else mainHandler.post(block)
+    }
+
     // region Typed emitters
 
     fun emit(
@@ -37,12 +51,14 @@ class TVEventEmitter {
         activeCall: ActiveCallDto? = null,
         error: CallErrorDto? = null,
     ) {
-        val a = api ?: return
         val dto = CallEventDto(type = type, activeCall = activeCall, error = error)
-        try {
-            a.onCallEvent(dto) { /* delivery result ignored */ }
-        } catch (t: Throwable) {
-            Log.w(TAG, "Failed to emit call event ${type.name}: ${t.message}")
+        postToMain {
+            val a = api ?: return@postToMain
+            try {
+                a.onCallEvent(dto) { /* delivery result ignored */ }
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to emit call event ${type.name}: ${t.message}")
+            }
         }
     }
 
