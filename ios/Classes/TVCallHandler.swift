@@ -20,8 +20,12 @@ final class TVCallHandler {
 
     /// Current active TwilioVoice call (outgoing or accepted incoming).
     weak var delegateOwner: AnyObject?
-    var call: Call?
-    var callInvite: CallInvite?
+    var call: Call? {
+        didSet { updateHasActiveCall() }
+    }
+    var callInvite: CallInvite? {
+        didSet { updateHasActiveCall() }
+    }
 
     /// CallKit answer/connect completion, captured while a call is ringing and
     /// invoked once Twilio reports connect success/failure.
@@ -33,6 +37,11 @@ final class TVCallHandler {
 
     /// Active CallKit calls, used by `isCallActive(uuid:)`.
     var activeCalls: [UUID: CXCall] = [:]
+
+    /// Pending async continuation for `place()`. Touched from the caller's
+    /// queue + the Twilio SDK's delegate queues, so always read/write on the
+    /// main thread — see [resolvePendingPlace] / [rejectPendingPlace].
+    private var pendingPlaceContinuation: CheckedContinuation<ActiveCallDto, Error>?
 
     init(
         state: TVPluginState,
@@ -52,20 +61,36 @@ final class TVCallHandler {
 
     // MARK: - VoiceHostApi entry points
 
-    func place(to: String, from: String?, extra: [String: String]) throws -> ActiveCallDto {
+    /// Place an outgoing call. Returns only once Twilio has a real `Call` with
+    /// a valid `sid` (on `callDidStartRinging`) or the SDK rejects the
+    /// connection attempt (on `callDidFailToConnect`). The CallKit round-trip
+    /// means the real Twilio `Call` is materialised later inside
+    /// [TVCallKitDelegate.provider(_:perform:CXStartCallAction)]; see
+    /// `resolvePendingPlace` / `rejectPendingPlace`.
+    func place(to: String, from: String?, extra: [String: String]) async throws -> ActiveCallDto {
+        // Preconditions — fail fast with typed errors.
+        if state.hasActiveCall {
+            throw FlutterTwilioError.of(
+                "call_already_active",
+                "Another call is already active."
+            )
+        }
         guard state.accessToken != nil else {
-            throw FlutterTwilioError.of("not_initialized", "Access token not set")
+            throw FlutterTwilioError.of(
+                "not_initialized",
+                "setAccessToken was not called."
+            )
         }
         guard permissionHandler.hasMicPermission() else {
             throw FlutterTwilioError.of(
                 "missing_permission",
-                "Microphone permission is required to place calls",
+                "Microphone permission is required to place a call.",
                 ["permission": "microphone"]
             )
         }
 
         // Mirror the legacy state tracking so CXStartCallAction builds
-        // ConnectOptions from `state.callArgs`.
+        // `ConnectOptions` from `state.callArgs`.
         state.callOutgoing = true
         state.identity = from ?? state.identity
         state.callTo = to
@@ -76,23 +101,57 @@ final class TVCallHandler {
         for (k, v) in extra { args[k] = v as AnyObject }
         state.callArgs = args
 
-        let uuid = UUID()
-        performStartCallAction(uuid: uuid, handle: to)
+        return try await withCheckedThrowingContinuation { cont in
+            // All continuation access happens on the main thread so we never
+            // race callDidStartRinging / callDidFailToConnect (which come in
+            // on Twilio SDK queues).
+            DispatchQueue.main.async {
+                if self.pendingPlaceContinuation != nil {
+                    cont.resume(throwing: FlutterTwilioError.of(
+                        "call_already_active",
+                        "A place() request is already in flight."
+                    ))
+                    return
+                }
+                self.pendingPlaceContinuation = cont
+                let uuid = UUID()
+                self.performStartCallAction(uuid: uuid, handle: to)
+            }
+        }
+    }
 
-        return ActiveCallDto(
-            sid: call?.sid ?? "unknown",
-            from: from ?? "",
-            to: to,
-            direction: .outgoing,
-            startedAt: state.callStartedAtMillis,
-            isMuted: state.isMuted,
-            isOnHold: state.isOnHold,
-            isOnSpeaker: audioHandler.isSpeakerOn,
-            customParameters: [:]
-        )
+    /// Called by `TVCallDelegate.callDidStartRinging` — earliest point the
+    /// Twilio `Call` has a real CA* sid we can hand back to Dart.
+    func resolvePendingPlace(with call: Call) {
+        DispatchQueue.main.async {
+            guard let cont = self.pendingPlaceContinuation else { return }
+            self.pendingPlaceContinuation = nil
+            cont.resume(returning: self.snapshotActiveCall(from: call))
+        }
+    }
+
+    /// Called by `TVCallDelegate.callDidFailToConnect` or by the CallKit
+    /// delegate when `CXStartCallAction` can't be fulfilled.
+    func rejectPendingPlace(with error: Error) {
+        DispatchQueue.main.async {
+            guard let cont = self.pendingPlaceContinuation else { return }
+            self.pendingPlaceContinuation = nil
+            if let pe = error as? PigeonError {
+                cont.resume(throwing: pe)
+            } else {
+                cont.resume(throwing: FlutterTwilioError.fromTwilio(error))
+            }
+        }
     }
 
     func answer() throws {
+        if state.hasActiveCall && callInvite == nil {
+            // There's a live `Call` already running — don't start a second.
+            throw FlutterTwilioError.of(
+                "call_already_active",
+                "Another call is already active."
+            )
+        }
         guard let ci = callInvite else {
             throw FlutterTwilioError.of("no_active_call", "No pending call invite to answer")
         }
@@ -188,6 +247,29 @@ final class TVCallHandler {
         )
     }
 
+    // MARK: - Snapshot helpers
+
+    /// Build an `ActiveCallDto` from a live Twilio `Call`. Used to resolve the
+    /// `place()` continuation with the real sid.
+    func snapshotActiveCall(from call: Call) -> ActiveCallDto {
+        let resolvedFrom = call.from ?? state.identity
+        let resolvedTo = call.to ?? state.callTo
+        let startedAt = state.callStartedAtMillis > 0
+            ? state.callStartedAtMillis
+            : Int64(Date().timeIntervalSince1970 * 1000.0)
+        return ActiveCallDto(
+            sid: call.sid,
+            from: resolvedFrom,
+            to: resolvedTo,
+            direction: .outgoing,
+            startedAt: startedAt,
+            isMuted: state.isMuted,
+            isOnHold: state.isOnHold,
+            isOnSpeaker: audioHandler.isSpeakerOn,
+            customParameters: [:]
+        )
+    }
+
     // MARK: - CallKit transactions (used by delegates)
 
     func performStartCallAction(uuid: UUID, handle: String) {
@@ -197,10 +279,20 @@ final class TVCallHandler {
         callController.request(transaction) { [weak self] error in
             guard let self = self else { return }
             if let error = error {
-                self.emitter.emitError(
+                // Transaction refused before Twilio ever saw the call — treat
+                // as a transport-level failure so Dart surfaces it via the
+                // `connection_error` taxonomy, not as a raw SDK error.
+                let pe = FlutterTwilioError.of(
                     "connection_error",
-                    "StartCallAction transaction request failed: \(error.localizedDescription)"
+                    "CallKit refused to start the transaction: \(error.localizedDescription)",
+                    ["nativeMessage": error.localizedDescription]
                 )
+                self.emitter.emitError(
+                    pe.code,
+                    pe.message ?? "CallKit refused transaction",
+                    (pe.details as? [String: Any?]) ?? [:]
+                )
+                self.rejectPendingPlace(with: pe)
                 return
             }
             let callUpdate = CXCallUpdate()
@@ -255,8 +347,19 @@ final class TVCallHandler {
     }
 
     func performVoiceCall(uuid: UUID, completionHandler: @escaping (Bool) -> Void) {
-        guard let token = state.accessToken else { completionHandler(false); return }
+        guard let token = state.accessToken else {
+            rejectPendingPlace(with: FlutterTwilioError.of(
+                "not_initialized",
+                "Access token was cleared before CXStartCallAction fired."
+            ))
+            completionHandler(false)
+            return
+        }
         guard let delegate = delegateOwner as? CallDelegate else {
+            rejectPendingPlace(with: FlutterTwilioError.of(
+                "unknown",
+                "Call delegate owner was deallocated."
+            ))
             completionHandler(false)
             return
         }
@@ -312,5 +415,11 @@ final class TVCallHandler {
             incomingPushCompletionCallback = nil
             completion()
         }
+    }
+
+    // MARK: - Private helpers
+
+    private func updateHasActiveCall() {
+        state.hasActiveCall = (call != nil) || (callInvite != nil)
     }
 }

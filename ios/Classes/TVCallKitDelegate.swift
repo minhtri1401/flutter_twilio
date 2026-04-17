@@ -22,9 +22,20 @@ extension FlutterTwilioPlugin: CXProviderDelegate {
 
     public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: Date())
-        callHandler.performVoiceCall(uuid: action.callUUID) { success in
+        callHandler.performVoiceCall(uuid: action.callUUID) { [weak self] success in
             if success {
                 provider.reportOutgoingCall(with: action.callUUID, connectedAt: Date())
+            } else {
+                // If Twilio never produced a real Call (and therefore never
+                // fired callDidStartRinging), the place() continuation is
+                // still pending — fail it so Dart gets a typed error instead
+                // of hanging forever.
+                self?.callHandler.rejectPendingPlace(
+                    with: FlutterTwilioError.of(
+                        "connection_error",
+                        "CallKit could not start the outgoing call."
+                    )
+                )
             }
         }
         action.fulfill()

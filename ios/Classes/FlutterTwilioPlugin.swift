@@ -115,13 +115,31 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
     }
 
     func place(request: PlaceCallRequest, completion: @escaping (Result<ActiveCallDto, Error>) -> Void) {
-        guardCall(completion) {
-            let extra: [String: String] = request.extraParameters?.reduce(
-                into: [String: String]()
-            ) { acc, pair in
-                if let k = pair.key, let v = pair.value { acc[k] = v }
-            } ?? [:]
-            return try self.callHandler.place(to: request.to, from: request.from, extra: extra)
+        let extra: [String: String] = request.extraParameters?.reduce(
+            into: [String: String]()
+        ) { acc, pair in
+            if let k = pair.key, let v = pair.value { acc[k] = v }
+        } ?? [:]
+        // place() is async — the continuation is resolved from
+        // `callDidStartRinging` (success) / `callDidFailToConnect` (failure).
+        Task { [callHandler] in
+            do {
+                let dto = try await callHandler.place(
+                    to: request.to,
+                    from: request.from,
+                    extra: extra
+                )
+                completion(.success(dto))
+            } catch let pe as PigeonError {
+                completion(.failure(pe))
+            } catch {
+                let ns = error as NSError
+                if ns.domain == "com.twilio.voice" || ns.domain.contains("Twilio") {
+                    completion(.failure(FlutterTwilioError.fromTwilio(error)))
+                } else {
+                    completion(.failure(FlutterTwilioError.unknown(error)))
+                }
+            }
         }
     }
 

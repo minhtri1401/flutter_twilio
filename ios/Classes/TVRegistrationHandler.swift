@@ -66,11 +66,7 @@ final class TVRegistrationHandler {
         guard let data = deviceToken else { return }
         TwilioVoiceSDK.unregister(accessToken: token, deviceToken: data) { [weak self] error in
             if let error = error {
-                self?.emitter.emitError(
-                    "registration_error",
-                    error.localizedDescription,
-                    ["nativeMessage": error.localizedDescription]
-                )
+                self?.emitRegistrationFailure(error)
             } else {
                 self?.emitter.emit(.unregistered)
             }
@@ -97,6 +93,8 @@ final class TVRegistrationHandler {
             if error == nil {
                 self?.deviceToken = nil
                 self?.emitter.emit(.unregistered)
+            } else if let error = error {
+                self?.emitRegistrationFailure(error)
             }
         }
     }
@@ -114,16 +112,29 @@ final class TVRegistrationHandler {
     private func registerWithTwilio(accessToken: String, deviceToken: Data) {
         TwilioVoiceSDK.register(accessToken: accessToken, deviceToken: deviceToken) { [weak self] error in
             if let error = error {
-                self?.emitter.emitError(
-                    "registration_error",
-                    error.localizedDescription,
-                    ["nativeMessage": error.localizedDescription]
-                )
+                self?.emitRegistrationFailure(error)
                 self?.emitter.emit(.registrationFailed)
             } else {
                 UserDefaults.standard.set(Date(), forKey: self?.kCachedBindingDate ?? "CachedBindingDate")
                 self?.emitter.emit(.registered)
             }
         }
+    }
+
+    /// Classify a registration-path failure as `invalid_token` when the Twilio
+    /// code falls in the token-rejection range, otherwise `registration_error`.
+    /// Always emitted on the event stream (never thrown) because registration
+    /// resolves asynchronously from `register()` / `unregister()` returning.
+    private func emitRegistrationFailure(_ error: Error) {
+        let ns = error as NSError
+        let twilioCode = ns.userInfo["TVErrorCodeKey"] as? Int ?? ns.code
+        let code = FlutterTwilioError.tokenErrorCodes.contains(twilioCode)
+            ? "invalid_token"
+            : "registration_error"
+        emitter.emitError(
+            code,
+            error.localizedDescription,
+            FlutterTwilioError.twilioDetails(error)
+        )
     }
 }

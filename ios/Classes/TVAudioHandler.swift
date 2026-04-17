@@ -24,15 +24,48 @@ final class TVAudioHandler {
     }
 
     /// Enables / disables the built-in speaker for the current call.
-    /// Throws [FlutterTwilioError] if there is no active call routing to flip.
+    /// Throws [FlutterTwilioError.audio_session_error] if `AVAudioSession`
+    /// refuses the port override.
     func setSpeaker(_ onSpeaker: Bool) throws {
-        toggleAudioRoute(toSpeaker: onSpeaker)
+        // Attempt the route change synchronously so we can surface failures to
+        // Dart as `audio_session_error`. The `audioDevice.block` is still set
+        // so any Twilio-initiated audio-session re-configuration reapplies the
+        // same override.
+        do {
+            if onSpeaker {
+                try AVAudioSession.sharedInstance().overrideOutputAudioPort(.speaker)
+            } else {
+                try AVAudioSession.sharedInstance().overrideOutputAudioPort(.none)
+            }
+        } catch {
+            let ns = error as NSError
+            throw FlutterTwilioError.of(
+                "audio_session_error",
+                ns.localizedDescription,
+                ["nativeMessage": ns.localizedDescription]
+            )
+        }
+        // Re-install the block so Twilio's own audio re-configuration preserves
+        // the route we just picked.
+        audioDevice.block = {
+            DefaultAudioDevice.DefaultAVAudioSessionConfigurationBlock()
+            do {
+                if onSpeaker {
+                    try AVAudioSession.sharedInstance().overrideOutputAudioPort(.speaker)
+                } else {
+                    try AVAudioSession.sharedInstance().overrideOutputAudioPort(.none)
+                }
+            } catch {
+                NSLog("TVAudioHandler audioDevice.block route error: \(error.localizedDescription)")
+            }
+        }
         state.isSpeakerOn = onSpeaker
         emitter.emit(onSpeaker ? .speakerOn : .speakerOff)
     }
 
     /// Internal helper re-used by the plugin on `callDidConnect` to force
-    /// speaker-off at call start.
+    /// speaker-off at call start. Silently logs any failures — if the route
+    /// change is part of call setup we can't meaningfully throw from here.
     func toggleAudioRoute(toSpeaker: Bool) {
         audioDevice.block = {
             DefaultAudioDevice.DefaultAVAudioSessionConfigurationBlock()

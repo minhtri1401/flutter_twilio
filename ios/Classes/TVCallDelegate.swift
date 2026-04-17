@@ -6,6 +6,9 @@ import TwilioVoice
 // MARK: - TwilioVoice.CallDelegate (in-call lifecycle)
 extension FlutterTwilioPlugin: CallDelegate {
     public func callDidStartRinging(call: Call) {
+        // Earliest point the Twilio `Call` has a real CA-prefixed `sid` —
+        // resolve any pending `place()` continuation with the live snapshot.
+        callHandler.resolvePendingPlace(with: call)
         emitter.emit(.ringing)
     }
 
@@ -26,17 +29,18 @@ extension FlutterTwilioPlugin: CallDelegate {
     }
 
     public func callDidFailToConnect(call: Call, error: Error) {
+        let ns = error as NSError
+        let twilioCode = ns.userInfo["TVErrorCodeKey"] as? Int ?? ns.code
+        let stable = FlutterTwilioError.stableCodeFor(nsError: ns, twilioCode: twilioCode)
         emitter.emitError(
-            "twilio_sdk_error",
+            stable,
             error.localizedDescription,
-            [
-                "twilioCode": (error as NSError).code,
-                "twilioDomain": (error as NSError).domain,
-                "nativeMessage": error.localizedDescription,
-            ]
+            FlutterTwilioError.twilioDetails(error)
         )
         emitter.emit(.callEnded)
         callHandler.callKitCompletionCallback?(false)
+        // Resolve any in-flight place() continuation with the mapped error.
+        callHandler.rejectPendingPlace(with: FlutterTwilioError.fromTwilio(error))
         if let uuid = call.uuid {
             callKitProvider.reportCall(with: uuid, endedAt: Date(), reason: .failed)
         }
@@ -45,14 +49,13 @@ extension FlutterTwilioPlugin: CallDelegate {
 
     public func callDidDisconnect(call: Call, error: Error?) {
         if let error = error {
+            let ns = error as NSError
+            let twilioCode = ns.userInfo["TVErrorCodeKey"] as? Int ?? ns.code
+            let stable = FlutterTwilioError.stableCodeFor(nsError: ns, twilioCode: twilioCode)
             emitter.emitError(
-                "twilio_sdk_error",
+                stable,
                 error.localizedDescription,
-                [
-                    "twilioCode": (error as NSError).code,
-                    "twilioDomain": (error as NSError).domain,
-                    "nativeMessage": error.localizedDescription,
-                ]
+                FlutterTwilioError.twilioDetails(error)
             )
             emitter.emit(.callEnded)
         } else {
