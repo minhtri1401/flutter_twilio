@@ -1,6 +1,200 @@
-# Migration Guide — twilio_voice upgrade
+# Migration: twilio_voice → flutter_twilio
 
-This document covers migration steps for the upcoming release, which includes significant changes on Android and deprecations on both platforms.
+This release renames the package from `twilio_voice` to `flutter_twilio` and
+restructures the public API. The scope has also narrowed: Web and macOS are
+no longer supported, and the Android side runs calls in-app (no more
+`ConnectionService` or phone-account setup).
+
+The original `twilio_voice → in-app calling` migration notes are preserved
+further below for any apps still working through that Android rewrite — the
+sections apply transitively after you finish the steps in this one.
+
+---
+
+## 1. pubspec.yaml
+
+```yaml
+# Before
+dependencies:
+  twilio_voice: ^0.3.2+2
+
+# After
+dependencies:
+  flutter_twilio: ^0.1.0
+```
+
+## 2. Imports and class rename
+
+There is a single import and a single facade. The old `TwilioVoice.instance`
+surface is replaced by `FlutterTwilio.instance.voice`; a new
+`FlutterTwilio.instance.sms` sibling exposes SMS.
+
+```dart
+// Before
+import 'package:twilio_voice/twilio_voice.dart';
+final tv = TwilioVoice.instance;
+
+// After
+import 'package:flutter_twilio/flutter_twilio.dart';
+final voice = FlutterTwilio.instance.voice;
+final sms   = FlutterTwilio.instance.sms;
+```
+
+## 3. `init()` is now required
+
+The unified facade needs Twilio account credentials up front (they're held
+in memory only). Call `init` once near app startup before touching `.voice`
+or `.sms`:
+
+```dart
+FlutterTwilio.instance.init(
+  accountSid: '<AC...>',
+  authToken: '<auth token>',
+  twilioNumber: '+15551234567', // default "from" for SMS + outbound calls
+);
+```
+
+The old plugin had no global init — access tokens were passed straight to
+`setTokens`. That call is now split in two: credentials via `init`, voice
+access token via `voice.setAccessToken`.
+
+## 4. Platform support reduced
+
+Web and macOS are no longer supported. If your app targeted either of them,
+you'll need to remove those targets or stay on `twilio_voice` 0.3.x.
+
+| Platform | twilio_voice 0.3 | flutter_twilio 0.1 |
+|---|---|---|
+| Android | ✅ | ✅ |
+| iOS | ✅ | ✅ |
+| Web | ✅ | ❌ |
+| macOS | ✅ | ❌ |
+
+## 5. Android package rename
+
+The Android plugin moved from `com.twilio.twilio_voice` to
+`com.dev.flutter_twilio`. Your app's `AndroidManifest.xml` FCM service entry
+needs updating:
+
+```xml
+<!-- Before -->
+<service
+    android:name="com.twilio.twilio_voice.fcm.VoiceFirebaseMessagingService"
+    android:exported="false"
+    android:stopWithTask="false">
+    <intent-filter>
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+    </intent-filter>
+</service>
+
+<!-- After -->
+<service
+    android:name="com.dev.flutter_twilio.fcm.VoiceFirebaseMessagingService"
+    android:exported="false"
+    android:stopWithTask="false">
+    <intent-filter>
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+    </intent-filter>
+</service>
+```
+
+No phone-account setup, `MANAGE_OWN_CALLS`, or
+`BIND_TELECOM_CONNECTION_SERVICE` is needed — that was retired in the
+in-app-calling migration below and stays retired here.
+
+## 6. iOS deployment target
+
+Minimum `ios/Podfile` target is **13.0** (was 11.0 in early `twilio_voice`
+releases, raised to 13.0 in the in-app-calling migration).
+
+```ruby
+platform :ios, '13.0'
+```
+
+## 7. Error handling: typed exceptions
+
+Every voice failure now arrives as a `VoiceException` subtype with a
+stable `code` string — either thrown directly from a method call or
+surfaced as `onError` on `voice.events`. Catch by subtype, not by parsing
+`PlatformException.code`.
+
+```dart
+try {
+  await FlutterTwilio.instance.voice.register();
+} on VoiceInvalidTokenException catch (e) {
+  // refresh and retry
+} on VoiceException catch (e) {
+  // e.code, e.message, e.details
+}
+```
+
+Stable voice codes:
+
+| Subtype | `code` |
+|---|---|
+| `VoiceNotInitializedException` | `not_initialized` |
+| `VoicePermissionDeniedException` | `missing_permission` |
+| `VoiceInvalidTokenException` | `invalid_token` |
+| `VoiceNoActiveCallException` | `no_active_call` |
+| `VoiceCallAlreadyActiveException` | `call_already_active` |
+| `TwilioSdkException` | `twilio_sdk_error` (carries `twilioCode`, `twilioDomain`) |
+
+SMS failures are `TwilioSmsException` with `statusCode` (HTTP status) and
+`twilioCode` (Twilio error code, e.g. `21211`).
+
+## 8. New SMS surface
+
+Twilio REST SMS is now a first-class sibling of voice, using the account
+credentials supplied to `init`:
+
+```dart
+final sms = FlutterTwilio.instance.sms;
+
+final msg    = await sms.send(to: '+15557654321', body: 'hi');
+final one    = await sms.get(sid: msg.sid);
+final recent = await sms.list(limit: 20);
+```
+
+## 9. Removed methods from the old API
+
+The following `twilio_voice` methods are **gone** — not renamed, not
+deprecated. If you relied on them, design around them before migrating.
+
+| Removed method(s) | Why |
+|---|---|
+| `registerPhoneAccount()`, `hasRegisteredPhoneAccount()`, `isPhoneAccountEnabled()`, `openPhoneAccountSettings()`, `hasManageOwnCallsPermission()`, `requestManageOwnCallsPermission()` | Android no longer uses `ConnectionService`; there is no phone account to register. |
+| `toggleBluetooth(bluetoothOn:)` / `hasBluetoothPermissions()` / `requestBluetoothPermissions()` | Bluetooth routing is now handled by the OS through the audio route picker; the plugin no longer exposes a manual toggle. |
+| `updateCallKitIcon(icon:)` | CallKit icon is sourced from `Assets.xcassets/callkit_icon.png` at build time. |
+| `registerClient(id, name)`, `unregisterClient(id)`, `setDefaultCallerName(name)` | The multi-client name-resolution layer was dropped. Handle caller-name display in your app or pass names through the TwiML `__TWI_*` custom parameters (still supported via `ActiveCall.customParameters`). |
+| `requiresBackgroundPermissions()`, `requestBackgroundPermissions()`, `showBackgroundCallUI()` | Custom background call UI was retired during the in-app-calling migration. |
+| `rejectCallOnNoPermissions()` / `isRejectingCallOnNoPermissions()` | Tied to the `CALL_PHONE` permission group that is no longer required. |
+
+## 10. Method renames (voice)
+
+Most of the kept methods moved off `.call` and onto `.voice` directly, with
+parameter-name tidies:
+
+| Before | After |
+|---|---|
+| `TwilioVoice.instance.setTokens(accessToken: ...)` | `FlutterTwilio.instance.voice.setAccessToken(...)` |
+| `TwilioVoice.instance.unregister()` | `FlutterTwilio.instance.voice.unregister()` |
+| `TwilioVoice.instance.call.place(from:, to:, extraOptions:)` | `FlutterTwilio.instance.voice.place(to:, from:, extra:)` |
+| `TwilioVoice.instance.call.answer()` | `FlutterTwilio.instance.voice.answer()` |
+| `TwilioVoice.instance.call.hangUp()` | `FlutterTwilio.instance.voice.hangUp()` |
+| `TwilioVoice.instance.call.toggleMute(isMuted:)` | `FlutterTwilio.instance.voice.setMuted(bool)` |
+| `TwilioVoice.instance.call.toggleSpeaker(speakerIsOn:)` | `FlutterTwilio.instance.voice.setSpeaker(bool)` |
+| `TwilioVoice.instance.call.holdCall(shouldHold:)` | `FlutterTwilio.instance.voice.setOnHold(bool)` |
+| `TwilioVoice.instance.call.sendDigits(digits)` | `FlutterTwilio.instance.voice.sendDigits(digits)` |
+| `TwilioVoice.instance.hasMicAccess()` / `requestMicAccess()` | `FlutterTwilio.instance.voice.hasMicPermission()` / `requestMicPermission()` |
+| `TwilioVoice.instance.callEventsListener` (stream of `CallEvent`) | `FlutterTwilio.instance.voice.events` (stream of `Call { event, active }`) |
+
+---
+
+# Legacy: twilio_voice in-app calling migration
+
+The sections below are the original migration notes for moving from the
+`ConnectionService`-based Android implementation to in-app calling. They
+remain relevant if you're coming from `twilio_voice` 0.2.x or earlier.
 
 ---
 
