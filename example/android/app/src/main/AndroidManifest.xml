@@ -33,7 +33,7 @@
             </intent-filter>
         </activity>
         <service
-            android:name="com.twilio.twilio_voice.fcm.VoiceFirebaseMessagingService"
+            android:name="com.dev.flutter_twilio.fcm.VoiceFirebaseMessagingService"
             android:exported="false"
             android:stopWithTask="false">
             <intent-filter>
