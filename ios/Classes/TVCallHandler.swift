@@ -1,188 +1,316 @@
-import Flutter
+import Foundation
 import UIKit
 import AVFoundation
 import TwilioVoice
 import CallKit
 
-// MARK: - CallDelegate
-extension FlutterTwilioPlugin: CallDelegate {
-    public func callDidStartRinging(call: Call) {
-        let direction = callOutgoing ? "Outgoing" : "Incoming"
-        let from = call.from ?? identity
-        let to = call.to ?? callTo
-        sendPhoneCallEvents(description: "Ringing|\(from)|\(to)|\(direction)", isError: false)
+/// Plain Swift handler exposing typed call-operation methods for the Pigeon
+/// [VoiceHostApi]. Holds the current Twilio `Call` / `CallInvite` plus the
+/// `CXCallController` used to bridge the Dart API to CallKit.
+final class TVCallHandler {
+
+    private let tag = "TVCallHandler"
+
+    private let state: TVPluginState
+    private let emitter: TVEventEmitter
+    private let audioHandler: TVAudioHandler
+    private let permissionHandler: TVPermissionHandler
+    private let callController: CXCallController
+    private let callKitProvider: CXProvider
+
+    /// Current active TwilioVoice call (outgoing or accepted incoming).
+    weak var delegateOwner: AnyObject?
+    var call: Call?
+    var callInvite: CallInvite?
+
+    /// CallKit answer/connect completion, captured while a call is ringing and
+    /// invoked once Twilio reports connect success/failure.
+    var callKitCompletionCallback: ((Bool) -> Void)?
+
+    /// Incoming-push completion handler set from PushKit; fulfilled once
+    /// TwilioVoice finishes processing the payload.
+    var incomingPushCompletionCallback: (() -> Void)?
+
+    /// Active CallKit calls, used by `isCallActive(uuid:)`.
+    var activeCalls: [UUID: CXCall] = [:]
+
+    init(
+        state: TVPluginState,
+        emitter: TVEventEmitter,
+        audioHandler: TVAudioHandler,
+        permissionHandler: TVPermissionHandler,
+        callController: CXCallController,
+        callKitProvider: CXProvider
+    ) {
+        self.state = state
+        self.emitter = emitter
+        self.audioHandler = audioHandler
+        self.permissionHandler = permissionHandler
+        self.callController = callController
+        self.callKitProvider = callKitProvider
     }
 
-    public func callDidConnect(call: Call) {
-        let direction = callOutgoing ? "Outgoing" : "Incoming"
-        let from = call.from ?? identity
-        let to = call.to ?? callTo
-        sendPhoneCallEvents(description: "Connected|\(from)|\(to)|\(direction)", isError: false)
-        callKitCompletionCallback?(true)
-        toggleAudioRoute(toSpeaker: false)
-    }
+    // MARK: - VoiceHostApi entry points
 
-    public func call(call: Call, isReconnectingWithError error: Error) {
-        sendPhoneCallEvents(description: "Reconnecting", isError: false)
-    }
-
-    public func callDidReconnect(call: Call) {
-        sendPhoneCallEvents(description: "Reconnected", isError: false)
-    }
-
-    public func callDidFailToConnect(call: Call, error: Error) {
-        sendPhoneCallEvents(description: "LOG|Call failed to connect: \(error.localizedDescription)", isError: false)
-        sendPhoneCallEvents(description: "Call Ended", isError: false)
-        if error.localizedDescription.contains("Access Token expired") {
-            if let deviceToken = deviceToken {
-                sendPhoneCallEvents(description: "DEVICETOKEN|\(String(decoding: deviceToken, as: UTF8.self))", isError: false)
-            }
+    func place(to: String, from: String?, extra: [String: String]) throws -> ActiveCallDto {
+        guard state.accessToken != nil else {
+            throw FlutterTwilioError.of("not_initialized", "Access token not set")
         }
-        callKitCompletionCallback?(false)
-        callKitProvider.reportCall(with: call.uuid!, endedAt: Date(), reason: .failed)
-        callDisconnected()
+        guard permissionHandler.hasMicPermission() else {
+            throw FlutterTwilioError.of(
+                "missing_permission",
+                "Microphone permission is required to place calls",
+                ["permission": "microphone"]
+            )
+        }
+
+        // Mirror the legacy state tracking so CXStartCallAction builds
+        // ConnectOptions from `state.callArgs`.
+        state.callOutgoing = true
+        state.identity = from ?? state.identity
+        state.callTo = to
+
+        var args: [String: AnyObject] = [:]
+        args["To"] = to as AnyObject
+        if let f = from { args["From"] = f as AnyObject }
+        for (k, v) in extra { args[k] = v as AnyObject }
+        state.callArgs = args
+
+        let uuid = UUID()
+        performStartCallAction(uuid: uuid, handle: to)
+
+        return ActiveCallDto(
+            sid: call?.sid ?? "unknown",
+            from: from ?? "",
+            to: to,
+            direction: .outgoing,
+            startedAt: state.callStartedAtMillis,
+            isMuted: state.isMuted,
+            isOnHold: state.isOnHold,
+            isOnSpeaker: audioHandler.isSpeakerOn,
+            customParameters: [:]
+        )
     }
 
-    public func callDidDisconnect(call: Call, error: Error?) {
-        sendPhoneCallEvents(description: "Call Ended", isError: false)
-        if let error = error {
-            sendPhoneCallEvents(description: "Call Failed: \(error.localizedDescription)", isError: true)
+    func answer() throws {
+        guard let ci = callInvite else {
+            throw FlutterTwilioError.of("no_active_call", "No pending call invite to answer")
         }
-        if !userInitiatedDisconnect {
-            var reason = CXCallEndedReason.remoteEnded
-            sendPhoneCallEvents(description: "LOG|User initiated disconnect", isError: false)
-            if error != nil { reason = .failed }
-            callKitProvider.reportCall(with: call.uuid!, endedAt: Date(), reason: reason)
-        }
-        callDisconnected()
-    }
-}
-
-// MARK: - Call operation helpers
-extension FlutterTwilioPlugin {
-    func callDisconnected() {
-        sendPhoneCallEvents(description: "LOG|Call Disconnected", isError: false)
-        if call != nil {
-            sendPhoneCallEvents(description: "LOG|Setting call to nil", isError: false)
-            call = nil
-        }
-        callInvite = nil
-        callOutgoing = false
-        userInitiatedDisconnect = false
-    }
-
-    func makeCall(to: String) {
-        if let activeCall = call {
-            userInitiatedDisconnect = true
-            performEndCallAction(uuid: activeCall.uuid!)
-        } else {
-            let uuid = UUID()
-            checkRecordPermission { permissionGranted in
-                if !permissionGranted {
-                    let alertController = UIAlertController(
-                        title: String(format: NSLocalizedString("mic_permission_title", comment: ""), FlutterTwilioPlugin.appName),
-                        message: NSLocalizedString("mic_permission_subtitle", comment: ""),
-                        preferredStyle: .alert)
-                    alertController.addAction(UIAlertAction(title: NSLocalizedString("btn_continue_no_mic", comment: ""), style: .default) { _ in
-                        self.performStartCallAction(uuid: uuid, handle: to)
-                    })
-                    alertController.addAction(UIAlertAction(title: NSLocalizedString("btn_settings", comment: ""), style: .default) { _ in
-                        UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!, options: [.universalLinksOnly: false], completionHandler: nil)
-                    })
-                    alertController.addAction(UIAlertAction(title: NSLocalizedString("btn_cancel", comment: ""), style: .cancel))
-                    guard let vc = UIApplication.shared.keyWindow?.topMostViewController() else { return }
-                    vc.present(alertController, animated: true)
-                } else {
-                    self.performStartCallAction(uuid: uuid, handle: to)
-                }
-            }
-        }
-    }
-
-    func answerCall(callInvite: CallInvite) {
-        let answerCallAction = CXAnswerCallAction(call: callInvite.uuid)
-        let transaction = CXTransaction(action: answerCallAction)
-        callKitCallController.request(transaction) { error in
+        let answerAction = CXAnswerCallAction(call: ci.uuid)
+        let transaction = CXTransaction(action: answerAction)
+        callController.request(transaction) { [weak self] error in
             if let error = error {
-                self.sendPhoneCallEvents(description: "LOG|AnswerCallAction transaction request failed: \(error.localizedDescription)", isError: false)
+                self?.emitter.emitError(
+                    "connection_error",
+                    "AnswerCallAction request failed: \(error.localizedDescription)"
+                )
             }
         }
     }
-}
 
-// MARK: - handle() method routing helpers
-extension FlutterTwilioPlugin {
-    func handleMakeCall(args: [String: AnyObject]) {
-        guard let callTo = args["To"] as? String, let callFrom = args["From"] as? String else { return }
-        callArgs = args
-        callOutgoing = true
-        if let token = args["accessToken"] as? String { accessToken = token }
-        self.callTo = callTo
-        identity = callFrom
-        makeCall(to: callTo)
+    func reject() throws {
+        guard let ci = callInvite else {
+            throw FlutterTwilioError.of("no_active_call", "No pending call invite to reject")
+        }
+        performEndCallAction(uuid: ci.uuid)
+        emitter.emit(.reject)
     }
 
-    func handleConnect(args: [String: AnyObject]) {
-        callArgs = args
-        callOutgoing = true
-        if let token = args["accessToken"] as? String { accessToken = token }
-        callTo = args["To"] as? String ?? ""
-        identity = args["From"] as? String ?? ""
-        makeCall(to: callTo)
-    }
-
-    func handleToggleMute(args: [String: AnyObject], result: FlutterResult) {
-        guard let muted = args["muted"] as? Bool else { return }
+    func hangUp() throws {
         if let call = call {
-            call.isMuted = muted
-            sendEvent(muted ? "Mute" : "Unmute")
-            result(true)
-        } else {
-            result(FlutterError(code: "MUTE_ERROR", message: "No call to be muted", details: nil))
-        }
-    }
-
-    func handleSendDigits(args: [String: AnyObject]) {
-        guard let digits = args["digits"] as? String else { return }
-        call?.sendDigits(digits)
-    }
-
-    func handleHoldCall(args: [String: AnyObject]) {
-        guard let shouldHold = args["shouldHold"] as? Bool, let call = call else { return }
-        let hold = call.isOnHold
-        if shouldHold && !hold {
-            call.isOnHold = true
-            sendEvent("Hold")
-        } else if !shouldHold && hold {
-            call.isOnHold = false
-            sendEvent("Unhold")
-        }
-    }
-
-    func handleToggleHold(args: [String: AnyObject]) {
-        guard let call = call else { return }
-        let isOnHold = call.isOnHold
-        call.isOnHold = !isOnHold
-        sendEvent(!isOnHold ? "Hold" : "Unhold")
-    }
-
-    func handleAnswer(result: FlutterResult) {
-        if let ci = callInvite {
-            sendPhoneCallEvents(description: "LOG|answer method invoked", isError: false)
-            answerCall(callInvite: ci)
-            result(true)
-        } else {
-            result(FlutterError(code: "ANSWER_ERROR", message: "No call invite to answer", details: nil))
-        }
-    }
-
-    func handleHangUp() {
-        if let call = call {
-            sendPhoneCallEvents(description: "LOG|hangUp method invoked", isError: false)
-            userInitiatedDisconnect = true
-            performEndCallAction(uuid: call.uuid!)
+            state.userInitiatedDisconnect = true
+            performEndCallAction(uuid: call.uuid ?? UUID())
         } else if let ci = callInvite {
             performEndCallAction(uuid: ci.uuid)
+        } else {
+            throw FlutterTwilioError.of("no_active_call", "No active call to hang up")
+        }
+    }
+
+    func setMuted(_ muted: Bool) throws {
+        guard let call = call else {
+            throw FlutterTwilioError.of("no_active_call", "No active call to mute")
+        }
+        call.isMuted = muted
+        state.isMuted = muted
+        emitter.emit(muted ? .mute : .unmute)
+    }
+
+    func setOnHold(_ onHold: Bool) throws {
+        guard let call = call else {
+            throw FlutterTwilioError.of("no_active_call", "No active call to hold")
+        }
+        call.isOnHold = onHold
+        state.isOnHold = onHold
+        emitter.emit(onHold ? .hold : .unhold)
+    }
+
+    func sendDigits(_ digits: String) throws {
+        guard let call = call else {
+            throw FlutterTwilioError.of("no_active_call", "No active call to send digits")
+        }
+        call.sendDigits(digits)
+    }
+
+    func getActiveCall() -> ActiveCallDto? {
+        if call == nil && callInvite == nil { return nil }
+
+        let sid: String
+        if let s = call?.sid {
+            sid = s
+        } else if let s = callInvite?.callSid {
+            sid = s
+        } else {
+            sid = "unknown"
+        }
+
+        let fromResolved = call?.from ?? callInvite?.from ?? state.identity
+        let toResolved = call?.to ?? callInvite?.to ?? state.callTo
+        let direction: CallDirection = (callInvite != nil && call == nil) ? .incoming : .outgoing
+
+        // CallInvite.customParameters is `[String: String]?` (values are Strings).
+        let custom: [String?: String?] = callInvite?.customParameters?.reduce(
+            into: [String?: String?]()
+        ) { acc, pair in
+            acc[pair.key] = pair.value
+        } ?? [:]
+
+        return ActiveCallDto(
+            sid: sid,
+            from: fromResolved,
+            to: toResolved,
+            direction: direction,
+            startedAt: state.callStartedAtMillis,
+            isMuted: state.isMuted,
+            isOnHold: state.isOnHold,
+            isOnSpeaker: audioHandler.isSpeakerOn,
+            customParameters: custom
+        )
+    }
+
+    // MARK: - CallKit transactions (used by delegates)
+
+    func performStartCallAction(uuid: UUID, handle: String) {
+        let callHandle = CXHandle(type: .generic, value: handle)
+        let startCallAction = CXStartCallAction(call: uuid, handle: callHandle)
+        let transaction = CXTransaction(action: startCallAction)
+        callController.request(transaction) { [weak self] error in
+            guard let self = self else { return }
+            if let error = error {
+                self.emitter.emitError(
+                    "connection_error",
+                    "StartCallAction transaction request failed: \(error.localizedDescription)"
+                )
+                return
+            }
+            let callUpdate = CXCallUpdate()
+            callUpdate.remoteHandle = callHandle
+            callUpdate.localizedCallerName = handle
+            callUpdate.supportsDTMF = false
+            callUpdate.supportsHolding = true
+            callUpdate.supportsGrouping = false
+            callUpdate.supportsUngrouping = false
+            callUpdate.hasVideo = false
+            self.callKitProvider.reportCall(with: uuid, updated: callUpdate)
+        }
+    }
+
+    func reportIncomingCall(from: String, uuid: UUID) {
+        let callHandle = CXHandle(type: .generic, value: from)
+        let callUpdate = CXCallUpdate()
+        callUpdate.remoteHandle = callHandle
+        callUpdate.localizedCallerName = from
+        callUpdate.supportsDTMF = true
+        callUpdate.supportsHolding = true
+        callUpdate.supportsGrouping = false
+        callUpdate.supportsUngrouping = false
+        callUpdate.hasVideo = false
+        callKitProvider.reportNewIncomingCall(with: uuid, update: callUpdate) { [weak self] error in
+            if let error = error {
+                self?.emitter.emitError(
+                    "connection_error",
+                    "Failed to report incoming call: \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    func performEndCallAction(uuid: UUID) {
+        guard isCallActive(uuid: uuid) else {
+            // Call already ended — still flush a callEnded to Dart listeners.
+            emitter.emit(.callEnded)
+            return
+        }
+        let endCallAction = CXEndCallAction(call: uuid)
+        callController.request(CXTransaction(action: endCallAction)) { [weak self] error in
+            if let error = error {
+                self?.emitter.emitError(
+                    "connection_error",
+                    "End Call Failed: \(error.localizedDescription)"
+                )
+            } else {
+                self?.emitter.emit(.callEnded)
+            }
+        }
+    }
+
+    func performVoiceCall(uuid: UUID, completionHandler: @escaping (Bool) -> Void) {
+        guard let token = state.accessToken else { completionHandler(false); return }
+        guard let delegate = delegateOwner as? CallDelegate else {
+            completionHandler(false)
+            return
+        }
+        let connectOptions = ConnectOptions(accessToken: token) { builder in
+            for (key, value) in self.state.callArgs where key != "From" {
+                builder.params[key] = "\(value)"
+            }
+            builder.uuid = uuid
+        }
+        call = TwilioVoiceSDK.connect(options: connectOptions, delegate: delegate)
+        callKitCompletionCallback = completionHandler
+    }
+
+    func performAnswerVoiceCall(uuid: UUID, completionHandler: @escaping (Bool) -> Void) {
+        guard let ci = callInvite else {
+            completionHandler(false)
+            return
+        }
+        guard let delegate = delegateOwner as? CallDelegate else {
+            completionHandler(false)
+            return
+        }
+        let acceptOptions = AcceptOptions(callInvite: ci) { builder in builder.uuid = ci.uuid }
+        let theCall = ci.accept(options: acceptOptions, delegate: delegate)
+        call = theCall
+        callKitCompletionCallback = completionHandler
+        // Keep the invite live in getActiveCall until the call is fully marked
+        // incoming via events; but clear it so a subsequent answer() throws.
+        callInvite = nil
+        guard #available(iOS 13, *) else {
+            incomingPushHandled()
+            return
+        }
+    }
+
+    func isCallActive(uuid: UUID) -> Bool {
+        return activeCalls[uuid] != nil
+    }
+
+    func callDisconnected() {
+        call = nil
+        callInvite = nil
+        state.callOutgoing = false
+        state.userInitiatedDisconnect = false
+        state.isMuted = false
+        state.isOnHold = false
+        state.isSpeakerOn = false
+        state.callStartedAtMillis = 0
+    }
+
+    func incomingPushHandled() {
+        if let completion = incomingPushCompletionCallback {
+            incomingPushCompletionCallback = nil
+            completion()
         }
     }
 }

@@ -6,77 +6,85 @@ import TwilioVoice
 import CallKit
 import UserNotifications
 
-public class FlutterTwilioPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, AVAudioPlayerDelegate {
+/// Entry point for the `flutter_twilio` iOS plugin.
+///
+/// Implements the Pigeon-generated [VoiceHostApi] and delegates each typed
+/// method to a single-purpose handler. All errors are translated via
+/// [FlutterTwilioError] so Dart observers receive the stable codes documented
+/// in the spec.
+///
+/// Asynchronous call-lifecycle events are pushed back to Dart via the
+/// [VoiceFlutterApi] installed on the [TVEventEmitter] — never via a
+/// [FlutterEventChannel].
+public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
+
+    // MARK: - Shared state
+
+    let state = TVPluginState()
+    let emitter = TVEventEmitter()
+    let audioDevice: DefaultAudioDevice = DefaultAudioDevice()
+
+    // MARK: - CallKit / PushKit infrastructure
+
     let callObserver = CXCallObserver()
+    let callKitProvider: CXProvider
+    let callKitCallController: CXCallController
+    let voipRegistry: PKPushRegistry
 
-    final let defaultCallKitIcon = "callkit_icon"
-    final let callLoggingEnabledKey = "TV_CALL_LOGGING_ENABLED"
-    var callKitIcon: String?
+    // MARK: - Handlers
 
-    var _result: FlutterResult?
-    private var eventSink: FlutterEventSink?
+    let audioHandler: TVAudioHandler
+    let permissionHandler: TVPermissionHandler
+    let callHandler: TVCallHandler
+    let registrationHandler: TVRegistrationHandler
 
-    let kRegistrationTTLInDays = 365
-    let kCachedDeviceToken = "CachedDeviceToken"
-    let kCachedBindingDate = "CachedBindingDate"
-    let kClientList = "TwilioContactList"
-    var clients: [String: String]!
+    // MARK: - Pigeon Flutter API
 
-    var accessToken: String?
-    var identity = "alice"
-    var callTo: String = "error"
-    var defaultCaller = "Unknown Caller"
-    var deviceToken: Data? {
-        get { UserDefaults.standard.data(forKey: kCachedDeviceToken) }
-        set { UserDefaults.standard.setValue(newValue, forKey: kCachedDeviceToken) }
-    }
-    var callArgs: Dictionary<String, AnyObject> = [String: AnyObject]()
-
-    var voipRegistry: PKPushRegistry
-    var incomingPushCompletionCallback: (() -> Void)? = nil
-
-    var callInvite: CallInvite?
-    var call: Call?
-    var callKitCompletionCallback: ((Bool) -> Void)? = nil
-    var audioDevice: DefaultAudioDevice = DefaultAudioDevice()
-
-    var callKitProvider: CXProvider
-    var callKitCallController: CXCallController
-    var userInitiatedDisconnect: Bool = false
-    var callOutgoing: Bool = false
-
-    var activeCalls: [UUID: CXCall] = [:]
+    private var flutterApi: VoiceFlutterApi?
 
     static var appName: String {
-        return (Bundle.main.infoDictionary?["CFBundleName"] as? String) ?? "Define CFBundleName"
+        (Bundle.main.infoDictionary?["CFBundleName"] as? String) ?? "FlutterTwilio"
     }
 
     public override init() {
+        // PushKit + CallKit configuration.
         voipRegistry = PKPushRegistry(queue: DispatchQueue.main)
         let configuration = CXProviderConfiguration(localizedName: FlutterTwilioPlugin.appName)
         configuration.maximumCallGroups = 1
         configuration.maximumCallsPerCallGroup = 1
-        let defaultIcon = UserDefaults.standard.string(forKey: defaultCallKitIcon) ?? defaultCallKitIcon
-        let callLoggingEnabled = UserDefaults.standard.optionalBool(forKey: callLoggingEnabledKey) ?? true
-        configuration.includesCallsInRecents = callLoggingEnabled
-        clients = UserDefaults.standard.object(forKey: kClientList) as? [String: String] ?? [:]
+        configuration.includesCallsInRecents = true
         callKitProvider = CXProvider(configuration: configuration)
         callKitCallController = CXCallController()
+
+        // Build handlers — plain Swift, no MethodChannel plumbing.
+        audioHandler = TVAudioHandler(state: state, emitter: emitter, audioDevice: audioDevice)
+        permissionHandler = TVPermissionHandler()
+        callHandler = TVCallHandler(
+            state: state,
+            emitter: emitter,
+            audioHandler: audioHandler,
+            permissionHandler: permissionHandler,
+            callController: callKitCallController,
+            callKitProvider: callKitProvider
+        )
+        registrationHandler = TVRegistrationHandler(state: state, emitter: emitter)
+
         super.init()
+
         callObserver.setDelegate(self, queue: DispatchQueue.main)
         callKitProvider.setDelegate(self, queue: nil)
-        _ = updateCallKitIcon(icon: defaultIcon)
         voipRegistry.delegate = self
         voipRegistry.desiredPushTypes = Set([PKPushType.voIP])
         UNUserNotificationCenter.current().delegate = self
-        let appDelegate = UIApplication.shared.delegate
-        guard let controller = appDelegate?.window??.rootViewController as? FlutterViewController else {
-            fatalError("rootViewController is not type FlutterViewController")
-        }
-        let registrar = controller.registrar(forPlugin: "twilio_voice")
-        if let unwrappedRegistrar = registrar {
-            let eventChannel = FlutterEventChannel(name: "twilio_voice/events", binaryMessenger: unwrappedRegistrar.messenger())
-            eventChannel.setStreamHandler(self)
+
+        // The TwilioVoice `Call.Delegate` + `NotificationDelegate` conformances
+        // live on the plugin; the call handler grabs us via `delegateOwner` so
+        // `ConnectOptions` can point at the same instance.
+        callHandler.delegateOwner = self
+
+        // Active-call snapshot provider for incoming events.
+        emitter.activeCallProvider = { [weak self] in
+            self?.callHandler.getActiveCall()
         }
     }
 
@@ -86,75 +94,101 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let instance = FlutterTwilioPlugin()
-        let methodChannel = FlutterMethodChannel(name: "twilio_voice/messages", binaryMessenger: registrar.messenger())
-        let eventChannel = FlutterEventChannel(name: "twilio_voice/events", binaryMessenger: registrar.messenger())
-        eventChannel.setStreamHandler(instance)
-        registrar.addMethodCallDelegate(instance, channel: methodChannel)
+        VoiceHostApiSetup.setUp(binaryMessenger: registrar.messenger(), api: instance)
+        instance.flutterApi = VoiceFlutterApi(binaryMessenger: registrar.messenger())
+        if let api = instance.flutterApi { instance.emitter.attach(api: api) }
         registrar.addApplicationDelegate(instance)
     }
 
-    public func handle(_ flutterCall: FlutterMethodCall, result: @escaping FlutterResult) {
-        _result = result
-        let args = flutterCall.arguments as? Dictionary<String, AnyObject> ?? [:]
-        switch flutterCall.method {
-        case "tokens":                     handleTokens(args: args, result: result)
-        case "makeCall":                   handleMakeCall(args: args); result(true)
-        case "connect":                    handleConnect(args: args); result(true)
-        case "toggleMute":                 handleToggleMute(args: args, result: result)
-        case "isMuted":                    result(call?.isMuted ?? false)
-        case "toggleSpeaker":              handleToggleSpeaker(args: args); result(true)
-        case "isOnSpeaker":                result(isSpeakerOn())
-        case "toggleBluetooth":            handleToggleBluetooth(args: args); result(true)
-        case "isBluetoothOn":              result(isBluetoothOn())
-        case "call-sid":                   result(call?.sid)
-        case "isOnCall":                   result(call != nil)
-        case "sendDigits":                 handleSendDigits(args: args); result(true)
-        case "holdCall":                   handleHoldCall(args: args); result(true)
-        case "isHolding":                  handleToggleHold(args: args); result(true)
-        case "answer":                     handleAnswer(result: result)
-        case "unregister":                 handleUnregister(args: args); result(true)
-        case "hangUp":                     handleHangUp(); result(true)
-        case "registerClient":             handleRegisterClient(args: args); result(true)
-        case "unregisterClient":           handleUnregisterClient(args: args); result(true)
-        case "defaultCaller":              handleDefaultCaller(args: args); result(true)
-        case "hasMicPermission":           result(AVAudioSession.sharedInstance().recordPermission == .granted)
-        case "requestMicPermission":       requestMicPermission(result: result)
-        case "hasBluetoothPermission":     result(true)
-        case "requestBluetoothPermission": result(true)
-        case "showNotifications":          handleShowNotifications(args: args, result: result)
-        case "updateCallKitIcon":          result(updateCallKitIcon(icon: args["icon"] as? String ?? defaultCallKitIcon))
-        case "enableCallLogging":          result(updateEnableCallLogging(args["enabled"] as? Bool ?? true))
-        default:                           result(FlutterMethodNotImplemented)
+    // MARK: - VoiceHostApi
+
+    func setAccessToken(token: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { try self.registrationHandler.setAccessToken(token) }
+    }
+
+    func register(completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { try self.registrationHandler.register() }
+    }
+
+    func unregister(completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { try self.registrationHandler.unregister() }
+    }
+
+    func place(request: PlaceCallRequest, completion: @escaping (Result<ActiveCallDto, Error>) -> Void) {
+        guardCall(completion) {
+            let extra: [String: String] = request.extraParameters?.reduce(
+                into: [String: String]()
+            ) { acc, pair in
+                if let k = pair.key, let v = pair.value { acc[k] = v }
+            } ?? [:]
+            return try self.callHandler.place(to: request.to, from: request.from, extra: extra)
         }
     }
 
-    // MARK: FlutterStreamHandler
-    public func onListen(withArguments arguments: Any?, eventSink: @escaping FlutterEventSink) -> FlutterError? {
-        self.eventSink = eventSink
-        return nil
+    func answer(completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { try self.callHandler.answer() }
     }
 
-    public func onCancel(withArguments arguments: Any?) -> FlutterError? {
-        eventSink = nil
-        return nil
+    func reject(completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { try self.callHandler.reject() }
     }
 
-    func sendPhoneCallEvents(description: String, isError: Bool) {
-        NSLog(description)
-        if isError {
-            sendEvent(FlutterError(code: "unavailable", message: description, details: nil))
-        } else {
-            sendEvent(description)
+    func hangUp(completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { try self.callHandler.hangUp() }
+    }
+
+    func setMuted(muted: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { try self.callHandler.setMuted(muted) }
+    }
+
+    func setOnHold(onHold: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { try self.callHandler.setOnHold(onHold) }
+    }
+
+    func setSpeaker(onSpeaker: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { try self.audioHandler.setSpeaker(onSpeaker) }
+    }
+
+    func sendDigits(digits: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { try self.callHandler.sendDigits(digits) }
+    }
+
+    func getActiveCall(completion: @escaping (Result<ActiveCallDto?, Error>) -> Void) {
+        guardCall(completion) { self.callHandler.getActiveCall() }
+    }
+
+    func hasMicPermission(completion: @escaping (Result<Bool, Error>) -> Void) {
+        guardCall(completion) { self.permissionHandler.hasMicPermission() }
+    }
+
+    func requestMicPermission(completion: @escaping (Result<Bool, Error>) -> Void) {
+        permissionHandler.requestMicPermission { granted in
+            completion(.success(granted))
         }
     }
 
-    func sendEvent(_ event: Any) {
-        guard let eventSink = eventSink else { return }
-        DispatchQueue.main.async { eventSink(event) }
+    // MARK: - Helpers
+
+    private func guardCall<T>(
+        _ completion: @escaping (Result<T, Error>) -> Void,
+        _ body: () throws -> T
+    ) {
+        do {
+            completion(.success(try body()))
+        } catch let pe as PigeonError {
+            completion(.failure(pe))
+        } catch {
+            let ns = error as NSError
+            if ns.domain == "com.twilio.voice" || ns.domain.contains("Twilio") {
+                completion(.failure(FlutterTwilioError.fromTwilio(error)))
+            } else {
+                completion(.failure(FlutterTwilioError.unknown(error)))
+            }
+        }
     }
 }
 
-// MARK: - Extensions
+// MARK: - UIWindow convenience (used by notification presentation code paths)
 extension UIWindow {
     func topMostViewController() -> UIViewController? {
         return topViewController(for: rootViewController)
@@ -173,11 +207,5 @@ extension UIWindow {
         default:
             return topViewController(for: presentedViewController)
         }
-    }
-}
-
-extension UserDefaults {
-    public func optionalBool(forKey defaultName: String) -> Bool? {
-        return value(forKey: defaultName) as? Bool
     }
 }
