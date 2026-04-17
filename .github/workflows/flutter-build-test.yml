@@ -7,14 +7,14 @@ name: Flutter Build and Test only
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
 
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: 3.27.4
+  FLUTTER_VERSION: 3.41.0
 
 jobs:
   build:
@@ -35,6 +35,21 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Verify Pigeon generated files are in sync
+        run: |
+          dart run pigeon --input pigeons/voice_api.dart
+          if ! git diff --quiet -- \
+              lib/src/voice/generated/voice_api.g.dart \
+              ios/Classes/Generated/VoiceApi.g.swift \
+              android/src/main/kotlin/com/dev/flutter_twilio/generated/VoiceApi.g.kt; then
+            echo "::error::Pigeon generated files are out of date. Run ./tool/pigeon_generate.sh and commit the result."
+            git --no-pager diff -- \
+              lib/src/voice/generated/voice_api.g.dart \
+              ios/Classes/Generated/VoiceApi.g.swift \
+              android/src/main/kotlin/com/dev/flutter_twilio/generated/VoiceApi.g.kt
+            exit 1
+          fi
 
       - name: Analyze project source
         run: flutter analyze
