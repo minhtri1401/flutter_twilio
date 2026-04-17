@@ -18,13 +18,12 @@ import 'voice/voice_impl.dart';
 /// await FlutterTwilio.instance.voice.setAccessToken('...');
 /// await FlutterTwilio.instance.sms.send(to: '+1...', body: 'hi');
 /// ```
+///
+/// Credentials live in memory only. Call [init] again to rotate them.
 class FlutterTwilio {
   FlutterTwilio._();
 
   static final FlutterTwilio instance = FlutterTwilio._();
-
-  @visibleForTesting
-  factory FlutterTwilio.newForTesting() = FlutterTwilio._;
 
   String? _accountSid;
   String? _authToken;
@@ -32,6 +31,8 @@ class FlutterTwilio {
   VoiceImpl? _voice;
   SmsClient? _sms;
 
+  /// Sets / rotates credentials. Safe to call more than once — the existing
+  /// `SmsClient` is closed and a fresh one created.
   void init({
     required String accountSid,
     required String authToken,
@@ -59,6 +60,20 @@ class FlutterTwilio {
       _sms ??
       (throw StateError(
           'FlutterTwilio.init() must be called before accessing .sms'));
+
+  /// Clears all in-memory state (credentials, voice stream, sms client).
+  /// Intended for tests — production code should just call [init] again to
+  /// rotate credentials.
+  @visibleForTesting
+  void resetForTesting() {
+    _accountSid = null;
+    _authToken = null;
+    _twilioNumber = null;
+    _sms?.close();
+    _sms = null;
+    _voice?.dispose();
+    _voice = null;
+  }
 
   @visibleForTesting
   String? get accountSidForTesting => _accountSid;

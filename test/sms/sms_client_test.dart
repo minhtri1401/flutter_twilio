@@ -127,4 +127,69 @@ void main() {
     expect(msg.sid, 'SM9');
     expect(sentUrl.path, endsWith('Messages/SM9.json'));
   });
+
+  test('send uses explicit from: argument over defaultFrom', () async {
+    late http.Request sent;
+    final c = client(MockClient((req) async {
+      sent = req;
+      return http.Response(
+        jsonEncode({
+          'sid': 'SM2',
+          'status': 'queued',
+          'direction': 'outbound-api',
+          'from': '+999',
+          'to': '+200',
+          'body': 'hi',
+          'num_segments': '1',
+        }),
+        201,
+      );
+    }));
+
+    await c.send(to: '+200', body: 'hi', from: '+999');
+
+    expect(sent.bodyFields['From'], '+999');
+  });
+
+  test('send without from and no defaultFrom throws invalid_argument', () async {
+    final c = SmsClient(
+      accountSid: 'AC123',
+      authToken: 'secret',
+      httpClient: MockClient((_) async {
+        fail('HTTP should not be called when from is missing');
+      }),
+    );
+
+    await expectLater(
+      c.send(to: '+200', body: 'hi'),
+      throwsA(isA<TwilioSmsException>()
+          .having((e) => e.code, 'code', 'invalid_argument')
+          .having((e) => e.statusCode, 'statusCode', 0)),
+    );
+  });
+
+  test('send with a malformed 2xx body throws parse_error', () async {
+    final c = client(MockClient((_) async => http.Response(
+          // Valid JSON but missing "sid".
+          '{"status":"queued","direction":"outbound-api"}',
+          200,
+        )));
+
+    await expectLater(
+      c.send(to: '+200', body: 'hi'),
+      throwsA(isA<TwilioSmsException>()
+          .having((e) => e.code, 'code', 'parse_error')),
+    );
+  });
+
+  test('5xx with empty body still yields a readable message', () async {
+    final c = client(MockClient((_) async => http.Response('', 503)));
+
+    await expectLater(
+      c.send(to: '+200', body: 'hi'),
+      throwsA(isA<TwilioSmsException>()
+          .having((e) => e.statusCode, 'statusCode', 503)
+          .having((e) => e.message, 'message', contains('503'))),
+    );
+  });
 }

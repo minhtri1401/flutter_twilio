@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_twilio/src/sms/errors.dart';
 import 'package:flutter_twilio/src/sms/models/message.dart';
 
 void main() {
@@ -42,5 +43,39 @@ void main() {
     });
     expect(m.dateSent, isNull);
     expect(m.numSegments, 0);
+  });
+
+  test('Message.fromJson throws TwilioSmsException when sid is missing', () {
+    expect(
+      () => Message.fromJson(const {
+        'status': 'queued',
+        'direction': 'outbound-api',
+      }),
+      throwsA(isA<TwilioSmsException>()
+          .having((e) => e.code, 'code', 'parse_error')
+          .having((e) => e.statusCode, 'statusCode', 0)),
+    );
+  });
+
+  test('Message.fromJson throws when a required field is the wrong type', () {
+    expect(
+      () => Message.fromJson(const {
+        'sid': 12345, // expected String
+        'status': 'queued',
+        'direction': 'outbound-api',
+      }),
+      throwsA(isA<TwilioSmsException>()
+          .having((e) => e.code, 'code', 'parse_error')),
+    );
+  });
+
+  test('Message.fromJson preserves raw payload in details on parse failure',
+      () {
+    try {
+      Message.fromJson(const {'status': 'queued'});
+      fail('expected TwilioSmsException');
+    } on TwilioSmsException catch (e) {
+      expect(e.details['raw'], isA<Map>());
+    }
   });
 }

@@ -64,7 +64,8 @@ class SmsClient implements SmsApi {
       throw TwilioSmsException(
         statusCode: 0,
         code: 'invalid_argument',
-        message: 'No "from" number: provide one or set defaultFrom.',
+        message:
+            'No "from" number: pass `from:` explicitly or set defaultFrom (twilioNumber) on init.',
       );
     }
     final res = await _request(

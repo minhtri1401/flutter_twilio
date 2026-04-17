@@ -110,17 +110,24 @@ final recent = await sms.list(limit: 20);
 ### Voice
 
 All voice failures arrive as `VoiceException` subtypes, either thrown from a
-method call or surfaced through `voice.events.onError`. The six shipping
+method call or surfaced through `voice.events.onError`. The shipping
 subtypes and their stable `code` strings:
 
-| Subtype | `code` |
-|---|---|
-| `VoiceNotInitializedException` | `not_initialized` |
-| `VoicePermissionDeniedException` | `missing_permission` |
-| `VoiceInvalidTokenException` | `invalid_token` |
-| `VoiceNoActiveCallException` | `no_active_call` |
-| `VoiceCallAlreadyActiveException` | `call_already_active` |
-| `TwilioSdkException` | `twilio_sdk_error` (carries `twilioCode`, `twilioDomain`) |
+| Subtype | `code` | Thrown from |
+|---|---|---|
+| `VoiceNotInitializedException` | `not_initialized` | state checks |
+| `VoicePermissionDeniedException` | `missing_permission` | mic-gated calls (carries `.permission`) |
+| `VoiceInvalidArgumentException` | `invalid_argument` | malformed arguments |
+| `VoiceInvalidTokenException` | `invalid_token` | Twilio rejected the JWT |
+| `VoiceNoActiveCallException` | `no_active_call` | action requires an active call |
+| `VoiceCallAlreadyActiveException` | `call_already_active` | place/answer while another call is live |
+| `TwilioSdkException` | `twilio_sdk_error` | SDK failures (carries `twilioCode`, `twilioDomain`) |
+| `VoiceAudioSessionException` | `audio_session_error` | AVAudioSession / AudioManager failure |
+| `VoiceRegistrationException` | `registration_error` | FCM/PushKit/Twilio register failure (async, via stream) |
+| `VoiceConnectionException` | `connection_error` | network / transport failure (async, via stream) |
+
+Unknown codes from future native updates fall through to the base
+`VoiceException` so old Dart builds stay forward-compatible.
 
 See [`lib/src/voice/errors.dart`](lib/src/voice/errors.dart) for the full
 taxonomy.

@@ -18,7 +18,7 @@ class TVCallAudioService : Service() {
 
     companion object {
         private const val NOTIFICATION_ID = 1001
-        private const val CHANNEL_ID = "twilio_voice_call_channel"
+        private const val CHANNEL_ID = "flutter_twilio_call_channel"
         const val EXTRA_CALLER_NAME = "EXTRA_CALLER_NAME"
 
         fun startService(context: Context, callerName: String) {

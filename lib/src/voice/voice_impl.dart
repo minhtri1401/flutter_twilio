@@ -98,11 +98,12 @@ class VoiceImpl implements VoiceApi, VoiceFlutterApi {
   @visibleForTesting
   void handleCallEventForTesting(CallEventDto event) {
     if (event.type == CallEventType.error && event.error != null) {
-      _events.addError(VoiceException.fromPigeon(PlatformException(
-        code: event.error!.code,
-        message: event.error!.message,
-        details: event.error!.details,
-      )));
+      final err = event.error!;
+      _events.addError(VoiceException.fromCodeMessageDetails(
+        err.code,
+        err.message,
+        _normalizeDetails(err.details),
+      ));
       return;
     }
     _events.add(Call(
@@ -111,6 +112,14 @@ class VoiceImpl implements VoiceApi, VoiceFlutterApi {
           ? null
           : ActiveCall.fromDto(event.activeCall!),
     ));
+  }
+
+  Map<String, Object?> _normalizeDetails(Map<String?, Object?>? raw) {
+    if (raw == null) return const {};
+    return {
+      for (final e in raw.entries)
+        if (e.key != null) e.key!: e.value,
+    };
   }
 
   @visibleForTesting

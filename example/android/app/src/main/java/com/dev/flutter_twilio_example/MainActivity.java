@@ -1,4 +1,4 @@
-package com.twilio.twilio_voice_example;
+package com.dev.flutter_twilio_example;
 
 import io.flutter.embedding.android.FlutterActivity;
 

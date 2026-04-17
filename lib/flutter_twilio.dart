@@ -11,10 +11,14 @@ export 'src/voice/errors.dart'
         VoiceException,
         VoiceNotInitializedException,
         VoicePermissionDeniedException,
+        VoiceInvalidArgumentException,
         VoiceInvalidTokenException,
         VoiceNoActiveCallException,
         VoiceCallAlreadyActiveException,
-        TwilioSdkException;
+        TwilioSdkException,
+        VoiceAudioSessionException,
+        VoiceRegistrationException,
+        VoiceConnectionException;
 export 'src/voice/models/active_call.dart' show ActiveCall;
 export 'src/voice/models/call.dart' show Call;
 export 'src/voice/models/call_event.dart' show CallEvent;
