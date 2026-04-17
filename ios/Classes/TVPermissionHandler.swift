@@ -2,7 +2,7 @@ import Flutter
 import AVFoundation
 
 // MARK: - Permission helpers
-extension SwiftTwilioVoicePlugin {
+extension FlutterTwilioPlugin {
     func checkRecordPermission(completion: @escaping (_ permissionGranted: Bool) -> Void) {
         switch AVAudioSession.sharedInstance().recordPermission {
         case .granted:

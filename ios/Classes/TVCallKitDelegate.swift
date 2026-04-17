@@ -2,7 +2,7 @@ import CallKit
 import AVFoundation
 
 // MARK: - CXProviderDelegate
-extension SwiftTwilioVoicePlugin: CXProviderDelegate {
+extension FlutterTwilioPlugin: CXProviderDelegate {
     public func providerDidReset(_ provider: CXProvider) {
         sendPhoneCallEvents(description: "LOG|providerDidReset:", isError: false)
         audioDevice.isEnabled = false
@@ -87,7 +87,7 @@ extension SwiftTwilioVoicePlugin: CXProviderDelegate {
 }
 
 // MARK: - CXCallObserverDelegate
-extension SwiftTwilioVoicePlugin: CXCallObserverDelegate {
+extension FlutterTwilioPlugin: CXCallObserverDelegate {
     public func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall) {
         if call.hasEnded {
             activeCalls.removeValue(forKey: call.uuid)

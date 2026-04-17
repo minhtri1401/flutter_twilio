@@ -1,15 +1,15 @@
-#import "TwilioVoicePlugin.h"
-#if __has_include(<twilio_voice/twilio_voice-Swift.h>)
-#import <twilio_voice/twilio_voice-Swift.h>
+#import "FlutterTwilioPlugin.h"
+#if __has_include(<flutter_twilio/flutter_twilio-Swift.h>)
+#import <flutter_twilio/flutter_twilio-Swift.h>
 #else
 // Support project import fallback if the generated compatibility header
 // is not copied when this plugin is created as a library.
 // https://forums.swift.org/t/swift-static-libraries-dont-copy-generated-objective-c-header/19816
-#import "twilio_voice-Swift.h"
+#import "flutter_twilio-Swift.h"
 #endif
 
-@implementation TwilioVoicePlugin
+@implementation FlutterTwilioPlugin
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
-  [SwiftTwilioVoicePlugin registerWithRegistrar:registrar];
+  [FlutterTwilioPlugin registerWithRegistrar:registrar];
 }
 @end

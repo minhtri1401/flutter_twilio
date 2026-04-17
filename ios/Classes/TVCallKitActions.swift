@@ -2,7 +2,7 @@ import CallKit
 import TwilioVoice
 
 // MARK: - CallKit action helpers
-extension SwiftTwilioVoicePlugin {
+extension FlutterTwilioPlugin {
     func performStartCallAction(uuid: UUID, handle: String) {
         let callHandle = CXHandle(type: .generic, value: handle)
         let startCallAction = CXStartCallAction(call: uuid, handle: callHandle)

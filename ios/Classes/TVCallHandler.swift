@@ -5,7 +5,7 @@ import TwilioVoice
 import CallKit
 
 // MARK: - CallDelegate
-extension SwiftTwilioVoicePlugin: CallDelegate {
+extension FlutterTwilioPlugin: CallDelegate {
     public func callDidStartRinging(call: Call) {
         let direction = callOutgoing ? "Outgoing" : "Incoming"
         let from = call.from ?? identity
@@ -59,7 +59,7 @@ extension SwiftTwilioVoicePlugin: CallDelegate {
 }
 
 // MARK: - Call operation helpers
-extension SwiftTwilioVoicePlugin {
+extension FlutterTwilioPlugin {
     func callDisconnected() {
         sendPhoneCallEvents(description: "LOG|Call Disconnected", isError: false)
         if call != nil {
@@ -80,7 +80,7 @@ extension SwiftTwilioVoicePlugin {
             checkRecordPermission { permissionGranted in
                 if !permissionGranted {
                     let alertController = UIAlertController(
-                        title: String(format: NSLocalizedString("mic_permission_title", comment: ""), SwiftTwilioVoicePlugin.appName),
+                        title: String(format: NSLocalizedString("mic_permission_title", comment: ""), FlutterTwilioPlugin.appName),
                         message: NSLocalizedString("mic_permission_subtitle", comment: ""),
                         preferredStyle: .alert)
                     alertController.addAction(UIAlertAction(title: NSLocalizedString("btn_continue_no_mic", comment: ""), style: .default) { _ in
@@ -111,7 +111,7 @@ extension SwiftTwilioVoicePlugin {
 }
 
 // MARK: - handle() method routing helpers
-extension SwiftTwilioVoicePlugin {
+extension FlutterTwilioPlugin {
     func handleMakeCall(args: [String: AnyObject]) {
         guard let callTo = args["To"] as? String, let callFrom = args["From"] as? String else { return }
         callArgs = args

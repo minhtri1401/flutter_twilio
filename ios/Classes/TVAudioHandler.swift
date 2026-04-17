@@ -2,7 +2,7 @@ import AVFoundation
 import TwilioVoice
 
 // MARK: - Audio routing
-extension SwiftTwilioVoicePlugin {
+extension FlutterTwilioPlugin {
     func isSpeakerOn() -> Bool {
         for output in AVAudioSession.sharedInstance().currentRoute.outputs {
             if output.portType == .builtInSpeaker { return true }
@@ -81,7 +81,7 @@ extension SwiftTwilioVoicePlugin {
 }
 
 // MARK: - handle() audio routing helpers
-extension SwiftTwilioVoicePlugin {
+extension FlutterTwilioPlugin {
     func handleToggleSpeaker(args: [String: AnyObject]) {
         guard let speakerIsOn = args["speakerIsOn"] as? Bool else { return }
         toggleAudioRoute(toSpeaker: speakerIsOn)

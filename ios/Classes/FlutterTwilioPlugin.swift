@@ -6,7 +6,7 @@ import TwilioVoice
 import CallKit
 import UserNotifications
 
-public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin, FlutterStreamHandler, AVAudioPlayerDelegate {
+public class FlutterTwilioPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, AVAudioPlayerDelegate {
     let callObserver = CXCallObserver()
 
     final let defaultCallKitIcon = "callkit_icon"
@@ -53,7 +53,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin, FlutterStreamHandl
 
     public override init() {
         voipRegistry = PKPushRegistry(queue: DispatchQueue.main)
-        let configuration = CXProviderConfiguration(localizedName: SwiftTwilioVoicePlugin.appName)
+        let configuration = CXProviderConfiguration(localizedName: FlutterTwilioPlugin.appName)
         configuration.maximumCallGroups = 1
         configuration.maximumCallsPerCallGroup = 1
         let defaultIcon = UserDefaults.standard.string(forKey: defaultCallKitIcon) ?? defaultCallKitIcon
@@ -85,7 +85,7 @@ public class SwiftTwilioVoicePlugin: NSObject, FlutterPlugin, FlutterStreamHandl
     }
 
     public static func register(with registrar: FlutterPluginRegistrar) {
-        let instance = SwiftTwilioVoicePlugin()
+        let instance = FlutterTwilioPlugin()
         let methodChannel = FlutterMethodChannel(name: "twilio_voice/messages", binaryMessenger: registrar.messenger())
         let eventChannel = FlutterEventChannel(name: "twilio_voice/events", binaryMessenger: registrar.messenger())
         eventChannel.setStreamHandler(instance)

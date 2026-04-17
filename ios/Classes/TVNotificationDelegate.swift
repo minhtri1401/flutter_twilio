@@ -2,7 +2,7 @@ import UserNotifications
 import TwilioVoice
 
 // MARK: - NotificationDelegate
-extension SwiftTwilioVoicePlugin: NotificationDelegate {
+extension FlutterTwilioPlugin: NotificationDelegate {
     public func callInviteReceived(callInvite: CallInvite) {
         sendPhoneCallEvents(description: "LOG|callInviteReceived:", isError: false)
         UserDefaults.standard.set(Date(), forKey: kCachedBindingDate)
@@ -68,7 +68,7 @@ extension SwiftTwilioVoicePlugin: NotificationDelegate {
 }
 
 // MARK: - UNUserNotificationCenterDelegate
-extension SwiftTwilioVoicePlugin: UNUserNotificationCenterDelegate {
+extension FlutterTwilioPlugin: UNUserNotificationCenterDelegate {
     public func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let userInfo = response.notification.request.content.userInfo
         if let type = userInfo["type"] as? String, type == "twilio-missed-call", let user = userInfo["From"] as? String {

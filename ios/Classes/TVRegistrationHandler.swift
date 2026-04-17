@@ -3,7 +3,7 @@ import PushKit
 import TwilioVoice
 
 // MARK: - PKPushRegistryDelegate
-extension SwiftTwilioVoicePlugin: PKPushRegistryDelegate {
+extension FlutterTwilioPlugin: PKPushRegistryDelegate {
     public func pushRegistry(_ registry: PKPushRegistry, didUpdate credentials: PKPushCredentials, for type: PKPushType) {
         sendPhoneCallEvents(description: "LOG|pushRegistry:didUpdatePushCredentials:forType:", isError: false)
         guard type == .voIP else { return }
@@ -55,7 +55,7 @@ extension SwiftTwilioVoicePlugin: PKPushRegistryDelegate {
 }
 
 // MARK: - Registration helpers
-extension SwiftTwilioVoicePlugin {
+extension FlutterTwilioPlugin {
     func registrationRequired() -> Bool {
         guard let lastBinding = UserDefaults.standard.object(forKey: kCachedBindingDate) as? Date else {
             sendPhoneCallEvents(description: "LOG|Registration required: true, last binding date not found", isError: false)
@@ -109,7 +109,7 @@ extension SwiftTwilioVoicePlugin {
 }
 
 // MARK: - handle() registration helpers
-extension SwiftTwilioVoicePlugin {
+extension FlutterTwilioPlugin {
     func handleTokens(args: [String: AnyObject], result: FlutterResult) {
         guard let token = args["accessToken"] as? String else {
             result(FlutterError(code: "INVALID_ARGUMENTS", message: "Missing accessToken", details: nil))
