@@ -1,5 +1,5 @@
 /// Twilio Programmable Voice + REST SMS for Flutter (Android + iOS).
-library flutter_twilio;
+library twilio_voice_sms;
 
 export 'src/flutter_twilio.dart' show FlutterTwilio;
 

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_twilio/src/sms/errors.dart';
+import 'package:twilio_voice_sms/src/sms/errors.dart';
 
 void main() {
   test('fromResponseBody parses Twilio error envelope', () {

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_twilio/src/sms/errors.dart';
-import 'package:flutter_twilio/src/sms/models/message.dart';
+import 'package:twilio_voice_sms/src/sms/errors.dart';
+import 'package:twilio_voice_sms/src/sms/models/message.dart';
 
 void main() {
   test('Message.fromJson parses the Twilio REST response', () {

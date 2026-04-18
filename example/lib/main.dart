@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_twilio/flutter_twilio.dart';
+import 'package:twilio_voice_sms/twilio_voice_sms.dart';
 
 void main() => runApp(const DemoApp());
 

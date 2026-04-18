@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_twilio/src/flutter_twilio.dart';
+import 'package:twilio_voice_sms/src/flutter_twilio.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

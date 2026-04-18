@@ -1,15 +1,15 @@
 #
 # To learn more about a Podspec see http://guides.cocoapods.org/syntax/podspec.html.
-# Run `pod lib lint flutter_twilio.podspec` to validate before publishing.
+# Run `pod lib lint twilio_voice_sms.podspec` to validate before publishing.
 #
 Pod::Spec.new do |s|
-  s.name             = 'flutter_twilio'
+  s.name             = 'twilio_voice_sms'
   s.version          = '0.1.0'
   s.summary          = 'Twilio Programmable Voice + REST SMS for Flutter.'
   s.description      = <<-DESC
   Voice (CallKit + PushKit) + SMS (REST) for iOS and Android.
                        DESC
-  s.homepage         = 'https://github.com/minhtri1401/flutter_twilio'
+  s.homepage         = 'https://github.com/minhtri1401/twilio_voice_sms'
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'MinhTri1401' => 'minhtri1412000@gmail.com' }
   s.source           = { :path => '.' }

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_twilio/src/voice/generated/voice_api.g.dart';
-import 'package:flutter_twilio/src/voice/models/active_call.dart';
-import 'package:flutter_twilio/src/voice/models/call_event.dart';
+import 'package:twilio_voice_sms/src/voice/generated/voice_api.g.dart';
+import 'package:twilio_voice_sms/src/voice/models/active_call.dart';
+import 'package:twilio_voice_sms/src/voice/models/call_event.dart';
 
 void main() {
   group('CallEvent', () {

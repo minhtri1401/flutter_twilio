@@ -331,7 +331,7 @@ class VoiceHostApiSetup {
   /// Sets up an instance of `VoiceHostApi` to handle messages through the `binaryMessenger`.
   static func setUp(binaryMessenger: FlutterBinaryMessenger, api: VoiceHostApi?, messageChannelSuffix: String = "") {
     let channelSuffix = messageChannelSuffix.count > 0 ? ".\(messageChannelSuffix)" : ""
-    let setAccessTokenChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.setAccessToken\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let setAccessTokenChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.setAccessToken\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       setAccessTokenChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -348,7 +348,7 @@ class VoiceHostApiSetup {
     } else {
       setAccessTokenChannel.setMessageHandler(nil)
     }
-    let registerChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.register\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let registerChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.register\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       registerChannel.setMessageHandler { _, reply in
         api.register { result in
@@ -363,7 +363,7 @@ class VoiceHostApiSetup {
     } else {
       registerChannel.setMessageHandler(nil)
     }
-    let unregisterChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.unregister\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let unregisterChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.unregister\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       unregisterChannel.setMessageHandler { _, reply in
         api.unregister { result in
@@ -378,7 +378,7 @@ class VoiceHostApiSetup {
     } else {
       unregisterChannel.setMessageHandler(nil)
     }
-    let placeChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.place\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let placeChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.place\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       placeChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -395,7 +395,7 @@ class VoiceHostApiSetup {
     } else {
       placeChannel.setMessageHandler(nil)
     }
-    let answerChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.answer\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let answerChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.answer\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       answerChannel.setMessageHandler { _, reply in
         api.answer { result in
@@ -410,7 +410,7 @@ class VoiceHostApiSetup {
     } else {
       answerChannel.setMessageHandler(nil)
     }
-    let rejectChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.reject\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let rejectChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.reject\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       rejectChannel.setMessageHandler { _, reply in
         api.reject { result in
@@ -425,7 +425,7 @@ class VoiceHostApiSetup {
     } else {
       rejectChannel.setMessageHandler(nil)
     }
-    let hangUpChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.hangUp\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let hangUpChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.hangUp\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       hangUpChannel.setMessageHandler { _, reply in
         api.hangUp { result in
@@ -440,7 +440,7 @@ class VoiceHostApiSetup {
     } else {
       hangUpChannel.setMessageHandler(nil)
     }
-    let setMutedChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.setMuted\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let setMutedChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.setMuted\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       setMutedChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -457,7 +457,7 @@ class VoiceHostApiSetup {
     } else {
       setMutedChannel.setMessageHandler(nil)
     }
-    let setOnHoldChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.setOnHold\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let setOnHoldChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.setOnHold\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       setOnHoldChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -474,7 +474,7 @@ class VoiceHostApiSetup {
     } else {
       setOnHoldChannel.setMessageHandler(nil)
     }
-    let setSpeakerChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.setSpeaker\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let setSpeakerChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.setSpeaker\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       setSpeakerChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -491,7 +491,7 @@ class VoiceHostApiSetup {
     } else {
       setSpeakerChannel.setMessageHandler(nil)
     }
-    let sendDigitsChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.sendDigits\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let sendDigitsChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.sendDigits\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       sendDigitsChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -508,7 +508,7 @@ class VoiceHostApiSetup {
     } else {
       sendDigitsChannel.setMessageHandler(nil)
     }
-    let getActiveCallChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.getActiveCall\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let getActiveCallChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.getActiveCall\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       getActiveCallChannel.setMessageHandler { _, reply in
         api.getActiveCall { result in
@@ -523,7 +523,7 @@ class VoiceHostApiSetup {
     } else {
       getActiveCallChannel.setMessageHandler(nil)
     }
-    let hasMicPermissionChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.hasMicPermission\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let hasMicPermissionChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.hasMicPermission\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       hasMicPermissionChannel.setMessageHandler { _, reply in
         api.hasMicPermission { result in
@@ -538,7 +538,7 @@ class VoiceHostApiSetup {
     } else {
       hasMicPermissionChannel.setMessageHandler(nil)
     }
-    let requestMicPermissionChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.flutter_twilio.VoiceHostApi.requestMicPermission\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let requestMicPermissionChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.requestMicPermission\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       requestMicPermissionChannel.setMessageHandler { _, reply in
         api.requestMicPermission { result in
@@ -572,7 +572,7 @@ class VoiceFlutterApi: VoiceFlutterApiProtocol {
   }
   /// Native → Dart stream of call events (including `CallEventType.error`).
   func onCallEvent(event eventArg: CallEventDto, completion: @escaping (Result<Void, PigeonError>) -> Void) {
-    let channelName: String = "dev.flutter.pigeon.flutter_twilio.VoiceFlutterApi.onCallEvent\(messageChannelSuffix)"
+    let channelName: String = "dev.flutter.pigeon.twilio_voice_sms.VoiceFlutterApi.onCallEvent\(messageChannelSuffix)"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
     channel.sendMessage([eventArg] as [Any?]) { response in
       guard let listResponse = response as? [Any?] else {

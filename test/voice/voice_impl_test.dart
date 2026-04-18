@@ -1,11 +1,11 @@
 // ignore_for_file: non_constant_identifier_names
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_twilio/src/voice/errors.dart';
-import 'package:flutter_twilio/src/voice/generated/voice_api.g.dart';
-import 'package:flutter_twilio/src/voice/models/call.dart';
-import 'package:flutter_twilio/src/voice/models/call_event.dart';
-import 'package:flutter_twilio/src/voice/voice_impl.dart';
+import 'package:twilio_voice_sms/src/voice/errors.dart';
+import 'package:twilio_voice_sms/src/voice/generated/voice_api.g.dart';
+import 'package:twilio_voice_sms/src/voice/models/call.dart';
+import 'package:twilio_voice_sms/src/voice/models/call_event.dart';
+import 'package:twilio_voice_sms/src/voice/voice_impl.dart';
 
 class _FakeHost implements VoiceHostApi {
   final List<String> log = [];

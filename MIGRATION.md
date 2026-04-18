@@ -35,7 +35,7 @@ import 'package:twilio_voice/twilio_voice.dart';
 final tv = TwilioVoice.instance;
 
 // After
-import 'package:flutter_twilio/flutter_twilio.dart';
+import 'package:twilio_voice_sms/twilio_voice_sms.dart';
 final voice = FlutterTwilio.instance.voice;
 final sms   = FlutterTwilio.instance.sms;
 ```

@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_twilio/src/voice/errors.dart';
+import 'package:twilio_voice_sms/src/voice/errors.dart';
 
 PlatformException _ex(
   String code, [

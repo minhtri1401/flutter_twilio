@@ -29,7 +29,7 @@ Twilio Programmable Voice (VoIP) and REST SMS for Flutter, exposed through a sin
 
 ```yaml
 dependencies:
-  flutter_twilio: ^0.1.0
+  twilio_voice_sms: ^0.1.0
 ```
 
 ## Initialize
@@ -38,7 +38,7 @@ Credentials are held in memory only — they are never written to disk by the
 plugin. Initialize once, typically near app startup.
 
 ```dart
-import 'package:flutter_twilio/flutter_twilio.dart';
+import 'package:twilio_voice_sms/twilio_voice_sms.dart';
 
 FlutterTwilio.instance.init(
   accountSid: '<AC...>',

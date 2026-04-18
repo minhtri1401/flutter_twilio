@@ -9,7 +9,7 @@ import 'package:pigeon/pigeon.dart';
   kotlinOptions: KotlinOptions(package: 'com.dev.flutter_twilio.generated'),
   swiftOut: 'ios/Classes/Generated/VoiceApi.g.swift',
   swiftOptions: SwiftOptions(),
-  dartPackageName: 'flutter_twilio',
+  dartPackageName: 'twilio_voice_sms',
 ))
 enum CallDirection { incoming, outgoing }
 

@@ -280,7 +280,7 @@ class VoiceHostApi {
   final String pigeonVar_messageChannelSuffix;
 
   Future<void> setAccessToken(String token) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.setAccessToken$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.setAccessToken$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -302,7 +302,7 @@ class VoiceHostApi {
   }
 
   Future<void> register() async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.register$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.register$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -324,7 +324,7 @@ class VoiceHostApi {
   }
 
   Future<void> unregister() async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.unregister$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.unregister$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -346,7 +346,7 @@ class VoiceHostApi {
   }
 
   Future<ActiveCallDto> place(PlaceCallRequest request) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.place$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.place$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -373,7 +373,7 @@ class VoiceHostApi {
   }
 
   Future<void> answer() async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.answer$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.answer$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -395,7 +395,7 @@ class VoiceHostApi {
   }
 
   Future<void> reject() async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.reject$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.reject$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -417,7 +417,7 @@ class VoiceHostApi {
   }
 
   Future<void> hangUp() async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.hangUp$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.hangUp$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -439,7 +439,7 @@ class VoiceHostApi {
   }
 
   Future<void> setMuted(bool muted) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.setMuted$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.setMuted$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -461,7 +461,7 @@ class VoiceHostApi {
   }
 
   Future<void> setOnHold(bool onHold) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.setOnHold$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.setOnHold$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -483,7 +483,7 @@ class VoiceHostApi {
   }
 
   Future<void> setSpeaker(bool onSpeaker) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.setSpeaker$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.setSpeaker$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -505,7 +505,7 @@ class VoiceHostApi {
   }
 
   Future<void> sendDigits(String digits) async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.sendDigits$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.sendDigits$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -527,7 +527,7 @@ class VoiceHostApi {
   }
 
   Future<ActiveCallDto?> getActiveCall() async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.getActiveCall$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.getActiveCall$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -549,7 +549,7 @@ class VoiceHostApi {
   }
 
   Future<bool> hasMicPermission() async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.hasMicPermission$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.hasMicPermission$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -576,7 +576,7 @@ class VoiceHostApi {
   }
 
   Future<bool> requestMicPermission() async {
-    final String pigeonVar_channelName = 'dev.flutter.pigeon.flutter_twilio.VoiceHostApi.requestMicPermission$pigeonVar_messageChannelSuffix';
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.requestMicPermission$pigeonVar_messageChannelSuffix';
     final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -613,18 +613,18 @@ abstract class VoiceFlutterApi {
     messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
     {
       final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.flutter_twilio.VoiceFlutterApi.onCallEvent$messageChannelSuffix', pigeonChannelCodec,
+          'dev.flutter.pigeon.twilio_voice_sms.VoiceFlutterApi.onCallEvent$messageChannelSuffix', pigeonChannelCodec,
           binaryMessenger: binaryMessenger);
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
         pigeonVar_channel.setMessageHandler((Object? message) async {
           assert(message != null,
-          'Argument for dev.flutter.pigeon.flutter_twilio.VoiceFlutterApi.onCallEvent was null.');
+          'Argument for dev.flutter.pigeon.twilio_voice_sms.VoiceFlutterApi.onCallEvent was null.');
           final List<Object?> args = (message as List<Object?>?)!;
           final CallEventDto? arg_event = (args[0] as CallEventDto?);
           assert(arg_event != null,
-              'Argument for dev.flutter.pigeon.flutter_twilio.VoiceFlutterApi.onCallEvent was null, expected non-null CallEventDto.');
+              'Argument for dev.flutter.pigeon.twilio_voice_sms.VoiceFlutterApi.onCallEvent was null, expected non-null CallEventDto.');
           try {
             api.onCallEvent(arg_event!);
             return wrapResponse(empty: true);

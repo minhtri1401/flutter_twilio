@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_twilio/src/sms/errors.dart';
-import 'package:flutter_twilio/src/sms/sms_client.dart';
+import 'package:twilio_voice_sms/src/sms/errors.dart';
+import 'package:twilio_voice_sms/src/sms/sms_client.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
