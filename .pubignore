@@ -1,0 +1,56 @@
+# Files that live in the repo but aren't part of the published package.
+
+# Build artifacts / caches at package root (Flutter test run output etc).
+build/
+.dart_tool/
+
+# Internal development notes (the README links to MIGRATION.md + CHANGELOG.md;
+# NOTES.md is author-level scratch).
+NOTES.md
+TODO.md
+
+# Development planning / docs directory (gitignored but belt-and-braces).
+docs/
+
+# Local tooling we don't want in the archive.
+tool/
+.fvm/
+.claude/
+.github/
+.metadata
+
+# Images directory used only in the old twilio_voice README.
+images/
+
+# ---------------------------------------------------------------------------
+# Example app — keep source only, strip build artifacts so the archive stays
+# under pub.dev's 10 MB recommended limit.
+# ---------------------------------------------------------------------------
+
+# Flutter / Dart build output
+example/build/
+example/.dart_tool/
+example/.flutter-plugins
+example/.flutter-plugins-dependencies
+example/pubspec.lock
+
+# iOS build artifacts + Pods (generated during `pod install` / xcodebuild)
+example/ios/Pods/
+example/ios/Flutter/Flutter.framework/
+example/ios/Flutter/Flutter.podspec
+example/ios/Flutter/ephemeral/
+example/ios/Podfile.lock
+example/ios/Runner.xcworkspace/xcuserdata/
+example/ios/Runner.xcodeproj/xcuserdata/
+example/ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+example/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+
+# Android build + wrapper cache
+example/android/.gradle/
+example/android/build/
+example/android/app/build/
+example/android/local.properties
+example/android/.idea/
+
+# IDE metadata
+example/.idea/
