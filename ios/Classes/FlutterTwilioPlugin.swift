@@ -16,6 +16,17 @@ import UserNotifications
 /// Asynchronous call-lifecycle events are pushed back to Dart via the
 /// [VoiceFlutterApi] installed on the [TVEventEmitter] — never via a
 /// [FlutterEventChannel].
+///
+/// ### Note on `@objc(FlutterTwilioPlugin)`
+///
+/// Swift normally mangles Objective-C class names with the module prefix
+/// (`flutter_twilio.FlutterTwilioPlugin`). The explicit `@objc` annotation
+/// pins the runtime name so Flutter's generated `GeneratedPluginRegistrant.m`
+/// — which selects plugins by plain Objective-C class name — can resolve us
+/// unambiguously, and so that a consumer app with a lingering `twilio_voice`
+/// dependency in its tree cannot collide with our registration key (a
+/// failure mode the upstream plugin hit as `Duplicate plugin key`).
+@objc(FlutterTwilioPlugin)
 public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
 
     // MARK: - Shared state
@@ -92,7 +103,20 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
         callKitProvider.invalidate()
     }
 
+    /// Single-instance guard. Flutter's plugin registrar should only call this
+    /// once per engine attach, but hot-restart + embedded-engine scenarios can
+    /// trigger a second call; re-entering `VoiceHostApiSetup.setUp` with a
+    /// fresh instance would orphan the previous Pigeon handler and leak the
+    /// old `CXProvider`. Guard by discarding repeat calls.
+    private static var registered = false
+
     public static func register(with registrar: FlutterPluginRegistrar) {
+        guard !registered else {
+            NSLog("[flutter_twilio] register(with:) called twice; ignoring the second attach.")
+            return
+        }
+        registered = true
+
         let instance = FlutterTwilioPlugin()
         VoiceHostApiSetup.setUp(binaryMessenger: registrar.messenger(), api: instance)
         instance.flutterApi = VoiceFlutterApi(binaryMessenger: registrar.messenger())

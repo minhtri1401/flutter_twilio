@@ -181,6 +181,42 @@ if (!await FlutterTwilio.instance.voice.hasMicPermission()) {
 
 See [`MIGRATION.md`](MIGRATION.md).
 
+## Troubleshooting
+
+### iOS: "Duplicate plugin key" crash at app launch
+
+Symptom: on iOS you see a crash / assertion like
+`Duplicate plugin key: twilio_voice` (or `flutter_twilio`) before any of
+your code runs. Cause: your dependency tree contains **both** the old
+`twilio_voice` package and `flutter_twilio` (usually because a transitive
+dependency still pins the old one, or a stale `Podfile.lock` / `Pods/`
+directory is lingering).
+
+Fix:
+
+```sh
+# 1. remove twilio_voice from pubspec.yaml (+ any transitive overrides)
+# 2. clean everything
+flutter clean
+cd ios && rm -rf Pods Podfile.lock && pod deintegrate && cd ..
+flutter pub get
+cd ios && pod install && cd ..
+```
+
+`flutter_twilio` pins its ObjC class name via `@objc(FlutterTwilioPlugin)`
+and guards against being registered twice from the same engine, so the
+only way to hit this class of bug now is the two-plugins-in-one-app case
+above.
+
+### Pigeon files out of sync
+
+If CI fails the `pigeon-diff` step, regenerate locally and commit:
+
+```sh
+./tool/pigeon_generate.sh
+git add pigeons lib/src/voice/generated ios/Classes/Generated android/src/main/kotlin/com/dev/flutter_twilio/generated
+```
+
 ## Changelog
 
 See [`CHANGELOG.md`](CHANGELOG.md).
