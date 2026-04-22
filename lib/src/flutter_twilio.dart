@@ -5,21 +5,38 @@ import 'sms/sms_client.dart';
 import 'voice/voice_api.dart';
 import 'voice/voice_impl.dart';
 
-/// Unified facade: shared credentials + access to `voice` and `sms`.
+/// Unified facade: voice + SMS behind one singleton.
 ///
-/// Usage:
+/// ## Initialization
+///
+/// `init` is split along the two subsystems' authentication models:
+///
+/// - **Voice** authenticates each session with a short-lived Twilio Access
+///   Token (JWT) passed separately to [VoiceApi.setAccessToken]. It does
+///   **not** need account-level credentials — `init()` with no arguments is
+///   enough to enable `.voice`.
+/// - **SMS** calls the Twilio REST API directly and needs your Account SID
+///   + Auth Token. Omit them and any call to `.sms` throws [StateError].
+///
 /// ```dart
-/// await FlutterTwilio.instance.init(
+/// // Voice-only (no SMS): voice works, .sms throws if accessed.
+/// FlutterTwilio.instance.init();
+///
+/// // Voice + SMS:
+/// FlutterTwilio.instance.init(
 ///   accountSid: 'AC...',
 ///   authToken: '...',
-///   twilioNumber: '+1...',
+///   twilioNumber: '+1...', // default "from" for sms.send()
 /// );
 ///
-/// await FlutterTwilio.instance.voice.setAccessToken('...');
-/// await FlutterTwilio.instance.sms.send(to: '+1...', body: 'hi');
+/// // SMS-only is also fine — voice is built but simply unused.
+/// FlutterTwilio.instance.init(
+///   accountSid: 'AC...',
+///   authToken: '...',
+/// );
 /// ```
 ///
-/// Credentials live in memory only. Call [init] again to rotate them.
+/// Credentials live in memory only; the plugin never persists them.
 class FlutterTwilio {
   FlutterTwilio._();
 
@@ -31,23 +48,39 @@ class FlutterTwilio {
   VoiceImpl? _voice;
   SmsClient? _sms;
 
-  /// Sets / rotates credentials. Safe to call more than once — the existing
-  /// `SmsClient` is closed and a fresh one created.
+  /// Sets / rotates credentials.
+  ///
+  /// Both [accountSid] and [authToken] are optional. Pass them if and only if
+  /// you intend to use SMS. Passing one without the other throws
+  /// [ArgumentError] — they're both halves of the same Basic-auth pair.
+  ///
+  /// Safe to call more than once. The existing `SmsClient` is closed and a
+  /// fresh one created when credentials change.
   void init({
-    required String accountSid,
-    required String authToken,
+    String? accountSid,
+    String? authToken,
     String? twilioNumber,
   }) {
+    if ((accountSid == null) != (authToken == null)) {
+      throw ArgumentError(
+        'accountSid and authToken must be provided together (both or neither). '
+        'For voice-only usage, omit both.',
+      );
+    }
+
     _accountSid = accountSid;
     _authToken = authToken;
     _twilioNumber = twilioNumber;
 
     _sms?.close();
-    _sms = SmsClient(
-      accountSid: accountSid,
-      authToken: authToken,
-      defaultFrom: twilioNumber,
-    );
+    _sms = (accountSid != null && authToken != null)
+        ? SmsClient(
+            accountSid: accountSid,
+            authToken: authToken,
+            defaultFrom: twilioNumber,
+          )
+        : null;
+
     _voice ??= VoiceImpl();
   }
 
@@ -59,7 +92,8 @@ class FlutterTwilio {
   SmsApi get sms =>
       _sms ??
       (throw StateError(
-          'FlutterTwilio.init() must be called before accessing .sms'));
+          'FlutterTwilio SMS is not initialized. Pass accountSid and '
+          'authToken to FlutterTwilio.instance.init(...) before accessing .sms.'));
 
   /// Clears all in-memory state (credentials, voice stream, sms client).
   /// Intended for tests — production code should just call [init] again to

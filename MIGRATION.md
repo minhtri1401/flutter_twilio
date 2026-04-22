@@ -52,6 +52,11 @@ need `firebase_messaging` in your app just to feed Twilio. (You still
 need the Firebase project + google-services.json so Twilio's push reaches
 the device.)
 
+`init()` parameters are now split along the two subsystems' auth models:
+voice uses a short-lived JWT per session (no account creds needed), SMS
+uses your Account SID + Auth Token for REST. Voice-only apps can call
+`init()` with no arguments.
+
 ```dart
 // Before
 await tv.setTokens(
@@ -59,11 +64,16 @@ await tv.setTokens(
   deviceToken: '<fcm-token-you-fetched>', // Android only
 );
 
-// After
+// After (voice-only):
+FlutterTwilio.instance.init();
+await FlutterTwilio.instance.voice.setAccessToken('<twilio-voice-JWT>');
+await FlutterTwilio.instance.voice.register();
+
+// After (voice + SMS — pass account creds together):
 FlutterTwilio.instance.init(
   accountSid: '<AC...>',
   authToken: '<account-auth-token>',
-  twilioNumber: '+15551234567',           // default "from" for SMS + outbound calls
+  twilioNumber: '+15551234567',           // default "from" for sms.send()
 );
 await FlutterTwilio.instance.voice.setAccessToken('<twilio-voice-JWT>');
 await FlutterTwilio.instance.voice.register();

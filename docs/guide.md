@@ -87,33 +87,49 @@ flutter pub get
 
 ### 1.3 Initialize once at app startup
 
+`init` is split along the two subsystems' auth models:
+
+- **Voice** authenticates each session with a short-lived JWT passed
+  separately to `voice.setAccessToken(...)`. It does **not** need
+  account-level credentials — `init()` with no arguments is enough to
+  enable `.voice`.
+- **SMS** calls the Twilio REST API directly and needs your Account
+  SID + Auth Token. Omit them and any call to `.sms` throws
+  `StateError`.
+
 ```dart
 import 'package:twilio_voice_sms/twilio_voice_sms.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  FlutterTwilio.instance.init(
-    accountSid: const String.fromEnvironment('TWILIO_ACCOUNT_SID'),
-    authToken:  const String.fromEnvironment('TWILIO_AUTH_TOKEN'),
-    twilioNumber: const String.fromEnvironment('TWILIO_FROM'),
-  );
+
+  // Voice-only (most apps):
+  FlutterTwilio.instance.init();
+
+  // Or, if you also want SMS — pass both credentials together:
+  // FlutterTwilio.instance.init(
+  //   accountSid: const String.fromEnvironment('TWILIO_ACCOUNT_SID'),
+  //   authToken:  const String.fromEnvironment('TWILIO_AUTH_TOKEN'),
+  //   twilioNumber: const String.fromEnvironment('TWILIO_FROM'),
+  // );
+
   runApp(const MyApp());
 }
 ```
 
-After `init` returns, `FlutterTwilio.instance.voice` and
-`FlutterTwilio.instance.sms` become accessible. Accessing them before
-`init` throws `StateError` — by design.
+Passing one credential without the other throws `ArgumentError` — they're
+both halves of the same Basic-auth pair.
+
+Accessing `.voice` or `.sms` before `init` throws `StateError`.
 
 **Security note:** credentials live in memory only; the plugin never
 persists them. But if you embed them in the compiled binary (as with
 `String.fromEnvironment` or a hard-coded constant), anyone who
-decompiles your app gets them. For SMS in particular — where your Auth
-Token grants access to your *entire* Twilio account — treat this as a
-prototype convenience. In production, put SMS behind your own backend.
-Voice JWTs are narrower-scoped and have a short TTL, so embedding the
-SMS creds is the bigger risk; the Voice path is fine because the JWT
-comes from your backend per session anyway.
+decompiles your app gets them. Your **Auth Token** grants access to
+your *entire* Twilio account — treat embedding it as a prototype
+convenience. In production, put SMS behind your own backend. Voice
+JWTs are narrower-scoped and have a short TTL, so the Voice path is
+fine because the JWT comes from your backend per session anyway.
 
 ---
 

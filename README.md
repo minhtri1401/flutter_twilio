@@ -41,15 +41,27 @@ dependencies:
 Credentials are held in memory only — they are never written to disk by the
 plugin. Initialize once, typically near app startup.
 
+`init` is split along the two subsystems' auth models. **Voice** uses a
+short-lived JWT passed to `setAccessToken` per session and needs no
+account-level credentials. **SMS** hits Twilio's REST API directly and needs
+your Account SID + Auth Token.
+
 ```dart
 import 'package:twilio_voice_sms/twilio_voice_sms.dart';
 
+// Voice-only (no SMS):
+FlutterTwilio.instance.init();
+
+// Voice + SMS:
 FlutterTwilio.instance.init(
   accountSid: '<AC...>',
   authToken: '<your Twilio auth token>',
-  twilioNumber: '+15551234567', // default "from" for SMS and outbound calls
+  twilioNumber: '+15551234567', // default "from" for sms.send()
 );
 ```
+
+Accessing `.sms` without providing credentials throws `StateError`; voice
+always works after `init()`.
 
 ## Voice
 

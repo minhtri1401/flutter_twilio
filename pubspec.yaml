@@ -1,6 +1,6 @@
 name: twilio_voice_sms
 description: Twilio Programmable Voice (VoIP) and REST SMS for Flutter — Android + iOS.
-version: 0.1.1
+version: 0.1.2
 homepage: https://github.com/minhtri1401/flutter_twilio
 repository: https://github.com/minhtri1401/flutter_twilio
 issue_tracker: https://github.com/minhtri1401/flutter_twilio/issues

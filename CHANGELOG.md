@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] — 2026-04-19
+
+### Changed
+
+- **`FlutterTwilio.instance.init()` credentials are now optional.**
+  Voice-only consumers no longer have to fabricate empty strings or
+  invent dummy SMS credentials. The parameters `accountSid` and
+  `authToken` are nullable; pass them if and only if you intend to use
+  the REST SMS API.
+
+  ```dart
+  // New in 0.1.2 — voice-only:
+  FlutterTwilio.instance.init();
+
+  // Still works for voice + SMS — unchanged signature:
+  FlutterTwilio.instance.init(
+    accountSid: '<AC...>', authToken: '<...>', twilioNumber: '+1...',
+  );
+  ```
+
+  Passing one credential without the other throws `ArgumentError`
+  (they're two halves of the same Basic-auth pair). Accessing `.sms`
+  when credentials weren't provided throws `StateError` with a helpful
+  message.
+
+  **Backward compatibility:** existing 0.1.0 / 0.1.1 callers that passed
+  both credentials continue to work unchanged. This is purely a
+  relaxation of the required-args constraint.
+
+### Added
+
+- Guide: [`docs/guide.md`](docs/guide.md) — a practical 8-part
+  getting-started article covering install, outbound calls,
+  inbound / push setup, SMS, error patterns, three recipes
+  (outbound-only, full VoIP, SMS-only), testing, and common pitfalls.
+  Linked from the README.
+
+### Fixed
+
+- README + `docs/guide.md` + `MIGRATION.md` §3 now reflect the optional
+  credentials.
+- 7 new test cases covering the optional-credentials matrix
+  (voice-only init, SMS-only init, re-init transitions, asymmetric
+  credential validation).
+
 ## [0.1.1] — 2026-04-19
 
 ### Changed
