@@ -14,6 +14,10 @@ Twilio Programmable Voice (VoIP) and REST SMS for Flutter, exposed through a sin
 - iOS CallKit + PushKit, Android in-app calling with a foreground audio
   service.
 
+> **New here?** The [getting-started guide](docs/guide.md) walks you from
+> `pub get` to a working outbound call in about 20 minutes, with optional
+> sections for inbound push calls, SMS, testing, and common pitfalls.
+
 ## Platform support
 
 | | Android | iOS |
