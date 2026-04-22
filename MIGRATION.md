@@ -20,7 +20,7 @@ dependencies:
 
 # After
 dependencies:
-  flutter_twilio: ^0.1.0
+  twilio_voice_sms: ^0.1.1
 ```
 
 ## 2. Imports and class rename
@@ -40,23 +40,47 @@ final voice = FlutterTwilio.instance.voice;
 final sms   = FlutterTwilio.instance.sms;
 ```
 
-## 3. `init()` is now required
+## 3. `init()` + explicit register flow
 
-The unified facade needs Twilio account credentials up front (they're held
-in memory only). Call `init` once near app startup before touching `.voice`
-or `.sms`:
+The old plugin's `setTokens(accessToken, deviceToken)` collapsed three
+concerns into a single call: (a) storing Twilio account credentials,
+(b) handing the plugin an FCM device token you had to fetch via
+`firebase_messaging`, (c) registering the device with Twilio's servers so
+incoming calls could be push-delivered. All three are now explicit steps,
+**and the plugin fetches its own FCM token internally** — you no longer
+need `firebase_messaging` in your app just to feed Twilio. (You still
+need the Firebase project + google-services.json so Twilio's push reaches
+the device.)
 
 ```dart
+// Before
+await tv.setTokens(
+  accessToken: '<twilio-voice-JWT>',
+  deviceToken: '<fcm-token-you-fetched>', // Android only
+);
+
+// After
 FlutterTwilio.instance.init(
   accountSid: '<AC...>',
-  authToken: '<auth token>',
-  twilioNumber: '+15551234567', // default "from" for SMS + outbound calls
+  authToken: '<account-auth-token>',
+  twilioNumber: '+15551234567',           // default "from" for SMS + outbound calls
 );
+await FlutterTwilio.instance.voice.setAccessToken('<twilio-voice-JWT>');
+await FlutterTwilio.instance.voice.register();
 ```
 
-The old plugin had no global init — access tokens were passed straight to
-`setTokens`. That call is now split in two: credentials via `init`, voice
-access token via `voice.setAccessToken`.
+`setAccessToken` only stores the JWT. `register()` is what actually talks to
+Twilio — it kicks off the FCM token fetch and calls `Voice.register(...)`.
+The method returns as soon as the fetch is initiated; the real result
+arrives asynchronously on `voice.events`:
+
+- Success → a `Call` with `event: CallEvent.registered`.
+- Failure → `onError` with `VoiceRegistrationException` (generic failures) or
+  `VoiceInvalidTokenException` (Twilio rejected the JWT — codes 20101 /
+  20104 / 20157).
+
+To rotate the JWT without fully unregistering, call `setAccessToken` with
+the new value and `register()` again.
 
 ## 4. Platform support reduced
 
@@ -130,17 +154,26 @@ try {
 
 Stable voice codes:
 
-| Subtype | `code` |
-|---|---|
-| `VoiceNotInitializedException` | `not_initialized` |
-| `VoicePermissionDeniedException` | `missing_permission` |
-| `VoiceInvalidTokenException` | `invalid_token` |
-| `VoiceNoActiveCallException` | `no_active_call` |
-| `VoiceCallAlreadyActiveException` | `call_already_active` |
-| `TwilioSdkException` | `twilio_sdk_error` (carries `twilioCode`, `twilioDomain`) |
+| Subtype | `code` | Thrown from |
+|---|---|---|
+| `VoiceNotInitializedException` | `not_initialized` | state checks |
+| `VoicePermissionDeniedException` | `missing_permission` | mic-gated calls (carries `.permission`) |
+| `VoiceInvalidArgumentException` | `invalid_argument` | malformed arguments |
+| `VoiceInvalidTokenException` | `invalid_token` | Twilio rejected the JWT |
+| `VoiceNoActiveCallException` | `no_active_call` | action requires an active call |
+| `VoiceCallAlreadyActiveException` | `call_already_active` | place/answer while another call is live |
+| `TwilioSdkException` | `twilio_sdk_error` | carries `twilioCode`, `twilioDomain` |
+| `VoiceAudioSessionException` | `audio_session_error` | AVAudioSession / AudioManager failure |
+| `VoiceRegistrationException` | `registration_error` | FCM / PushKit / Twilio register failure (async, via stream) |
+| `VoiceConnectionException` | `connection_error` | network / transport failure (async, via stream) |
+
+Unknown codes from future native updates fall through to the base
+`VoiceException` so old Dart builds stay forward-compatible.
 
 SMS failures are `TwilioSmsException` with `statusCode` (HTTP status) and
-`twilioCode` (Twilio error code, e.g. `21211`).
+`twilioCode` (Twilio error code, e.g. `21211`). Malformed Twilio 2xx
+responses are caught as `TwilioSmsException(code: 'parse_error')` rather
+than leaking a raw `TypeError`.
 
 ## 8. New SMS surface
 
@@ -174,10 +207,12 @@ deprecated. If you relied on them, design around them before migrating.
 Most of the kept methods moved off `.call` and onto `.voice` directly, with
 parameter-name tidies:
 
-| Before | After |
-|---|---|
-| `TwilioVoice.instance.setTokens(accessToken: ...)` | `FlutterTwilio.instance.voice.setAccessToken(...)` |
-| `TwilioVoice.instance.unregister()` | `FlutterTwilio.instance.voice.unregister()` |
+| Before | After | Notes |
+|---|---|---|
+| `TwilioVoice.instance.setTokens(accessToken: ...)` | `FlutterTwilio.instance.voice.setAccessToken(...)` + `voice.register()` | **Behavioral split.** Old `setTokens` stored the token *and* registered with Twilio in one call. New `setAccessToken` only stores; you must follow with `voice.register()`. See §3. |
+| `setTokens(deviceToken: '<fcm>')` | _(removed)_ | The FCM device token is now fetched by the plugin via `FirebaseMessaging.getInstance().token`. Your code should no longer pass it in. |
+| _(none — was implicit inside `setTokens`)_ | `FlutterTwilio.instance.voice.register()` | New explicit step; result arrives on `voice.events` (see §3). |
+| `TwilioVoice.instance.unregister()` | `FlutterTwilio.instance.voice.unregister()` | Semantic parity. |
 | `TwilioVoice.instance.call.place(from:, to:, extraOptions:)` | `FlutterTwilio.instance.voice.place(to:, from:, extra:)` |
 | `TwilioVoice.instance.call.answer()` | `FlutterTwilio.instance.voice.answer()` |
 | `TwilioVoice.instance.call.hangUp()` | `FlutterTwilio.instance.voice.hangUp()` |
@@ -193,8 +228,14 @@ parameter-name tidies:
 # Legacy: twilio_voice in-app calling migration
 
 The sections below are the original migration notes for moving from the
-`ConnectionService`-based Android implementation to in-app calling. They
-remain relevant if you're coming from `twilio_voice` 0.2.x or earlier.
+`ConnectionService`-based Android implementation to in-app calling within
+the legacy `twilio_voice` package. They remain relevant if you're coming
+from `twilio_voice` 0.2.x or earlier.
+
+> **Note on code samples in this legacy section:** examples here use the
+> old `TwilioVoicePlatform.instance` / `tv.setTokens` / `tv.call.place`
+> API, not the new `FlutterTwilio.instance.voice` facade. For the current
+> package's API, see §1–10 above.
 
 ---
 

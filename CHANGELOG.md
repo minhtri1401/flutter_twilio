@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] — 2026-04-19
+
+### Changed
+
+- **MIGRATION.md accuracy fixes.** The `twilio_voice → twilio_voice_sms`
+  guide now correctly describes the `setTokens` split:
+  `init` (credentials) + `voice.setAccessToken` (store JWT) +
+  `voice.register` (talk to Twilio). Explains that the FCM device token
+  is now fetched internally — old code that plumbed `firebase_messaging`
+  into `setTokens(deviceToken:)` can drop that wiring.
+- **Expanded error taxonomy table.** Lists all 10 shipped `VoiceException`
+  subtypes (§7), including the ones added in 0.1.0: `VoiceInvalidArgumentException`,
+  `VoiceAudioSessionException`, `VoiceRegistrationException`,
+  `VoiceConnectionException`.
+- **Method-rename table** now flags `setTokens → setAccessToken` as a
+  *behavioral* split (not 1:1) and adds rows for the new explicit
+  `register()` step and the removed `deviceToken` parameter.
+- pubspec snippet in §1 now shows the correct pub name
+  (`twilio_voice_sms`, not the pre-publish `flutter_twilio`).
+- Clarifying note prefixes the "Legacy" block so readers don't mistake
+  its old-API samples (`TwilioVoicePlatform.instance`, `tv.setTokens`,
+  `tv.call.place`) for current guidance.
+
+### Fixed
+
+- `ios/twilio_voice_sms.podspec` version bumped to 0.1.1.
+
+No runtime code changes. Dart / Android / iOS behavior is identical to
+0.1.0; this release is documentation only.
+
 ## [0.1.0] — 2026-04-17
 
 Initial release of `flutter_twilio`, a ground-up refactor of the original

@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'twilio_voice_sms'
-  s.version          = '0.1.0'
+  s.version          = '0.1.1'
   s.summary          = 'Twilio Programmable Voice + REST SMS for Flutter.'
   s.description      = <<-DESC
   Voice (CallKit + PushKit) + SMS (REST) for iOS and Android.
