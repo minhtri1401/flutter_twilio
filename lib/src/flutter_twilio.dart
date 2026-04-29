@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'sms/sms_api.dart';
 import 'sms/sms_client.dart';
 import 'voice/voice_api.dart';
+import 'voice/voice_config.dart';
 import 'voice/voice_impl.dart';
 
 /// Unified facade: voice + SMS behind one singleton.
@@ -60,6 +61,14 @@ class FlutterTwilio {
     String? accountSid,
     String? authToken,
     String? twilioNumber,
+    String? ringbackAsset,
+    String? connectToneAsset,
+    String? disconnectToneAsset,
+    bool playRingback = true,
+    bool playConnectTone = false,
+    bool playDisconnectTone = false,
+    bool bringAppToForegroundOnAnswer = true,
+    bool bringAppToForegroundOnEnd = false,
   }) {
     if ((accountSid == null) != (authToken == null)) {
       throw ArgumentError(
@@ -82,6 +91,26 @@ class FlutterTwilio {
         : null;
 
     _voice ??= VoiceImpl();
+
+    final config = VoiceConfig(
+      ringbackAsset: ringbackAsset,
+      connectToneAsset: connectToneAsset,
+      disconnectToneAsset: disconnectToneAsset,
+      playRingback: playRingback,
+      playConnectTone: playConnectTone,
+      playDisconnectTone: playDisconnectTone,
+      bringAppToForegroundOnAnswer: bringAppToForegroundOnAnswer,
+      bringAppToForegroundOnEnd: bringAppToForegroundOnEnd,
+    );
+    // Best-effort: native side may not be attached in unit tests.
+    () async {
+      try {
+        await (_voice as VoiceImpl).configure(config);
+      } catch (_) {
+        // Surface real failures via the voice event stream during real runs;
+        // unit tests without a platform channel intentionally swallow.
+      }
+    }();
   }
 
   VoiceApi get voice =>

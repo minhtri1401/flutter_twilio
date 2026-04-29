@@ -4,12 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'errors.dart';
-import 'generated/voice_api.g.dart' hide AudioRoute, AudioRouteInfo;
+import 'generated/voice_api.g.dart' hide AudioRoute, AudioRouteInfo, VoiceConfig;
 import 'models/active_call.dart';
 import 'models/audio_route.dart';
 import 'models/call.dart';
 import 'models/call_event.dart';
 import 'voice_api.dart';
+import 'voice_config.dart';
 
 class VoiceImpl implements VoiceApi, VoiceFlutterApi {
   VoiceImpl({VoiceHostApi? host}) : _host = host ?? VoiceHostApi() {
@@ -87,6 +88,9 @@ class VoiceImpl implements VoiceApi, VoiceFlutterApi {
   @override
   Future<void> bringAppToForeground() =>
       _guard(() => _host.bringAppToForeground());
+
+  Future<void> configure(VoiceConfig config) =>
+      _guard(() => _host.configure(config.toPigeon()));
 
   @override
   @Deprecated(
