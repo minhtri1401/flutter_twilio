@@ -73,6 +73,13 @@ enum CallDirection: Int {
   case outgoing = 1
 }
 
+enum AudioRoute: Int {
+  case earpiece = 0
+  case speaker = 1
+  case bluetooth = 2
+  case wired = 3
+}
+
 /// Mirrors Dart's CallEvent enum. Keep this in sync 1:1 with
 /// lib/src/voice/models/call_event.dart — add new values to both sides.
 enum CallEventType: Int {
@@ -98,7 +105,36 @@ enum CallEventType: Int {
   case unmute = 19
   case speakerOn = 20
   case speakerOff = 21
-  case error = 22
+  case audioRouteChanged = 22
+  case error = 23
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct AudioRouteInfo {
+  var route: AudioRoute
+  var isActive: Bool
+  var deviceName: String? = nil
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> AudioRouteInfo? {
+    let route = pigeonVar_list[0] as! AudioRoute
+    let isActive = pigeonVar_list[1] as! Bool
+    let deviceName: String? = nilOrValue(pigeonVar_list[2])
+
+    return AudioRouteInfo(
+      route: route,
+      isActive: isActive,
+      deviceName: deviceName
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      route,
+      isActive,
+      deviceName,
+    ]
+  }
 }
 
 /// Generated class from Pigeon that represents data sent in messages.
@@ -111,6 +147,8 @@ struct ActiveCallDto {
   var isMuted: Bool
   var isOnHold: Bool
   var isOnSpeaker: Bool
+  var currentRoute: AudioRoute
+  var connectedAt: Int64? = nil
   var customParameters: [String?: String?]? = nil
 
 
@@ -124,7 +162,9 @@ struct ActiveCallDto {
     let isMuted = pigeonVar_list[5] as! Bool
     let isOnHold = pigeonVar_list[6] as! Bool
     let isOnSpeaker = pigeonVar_list[7] as! Bool
-    let customParameters: [String?: String?]? = nilOrValue(pigeonVar_list[8])
+    let currentRoute = pigeonVar_list[8] as! AudioRoute
+    let connectedAt: Int64? = nilOrValue(pigeonVar_list[9])
+    let customParameters: [String?: String?]? = nilOrValue(pigeonVar_list[10])
 
     return ActiveCallDto(
       sid: sid,
@@ -135,6 +175,8 @@ struct ActiveCallDto {
       isMuted: isMuted,
       isOnHold: isOnHold,
       isOnSpeaker: isOnSpeaker,
+      currentRoute: currentRoute,
+      connectedAt: connectedAt,
       customParameters: customParameters
     )
   }
@@ -148,6 +190,8 @@ struct ActiveCallDto {
       isMuted,
       isOnHold,
       isOnSpeaker,
+      currentRoute,
+      connectedAt,
       customParameters,
     ]
   }
@@ -186,6 +230,7 @@ struct CallEventDto {
   var type: CallEventType
   var activeCall: ActiveCallDto? = nil
   var error: CallErrorDto? = nil
+  var audioRoute: AudioRoute? = nil
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -193,11 +238,13 @@ struct CallEventDto {
     let type = pigeonVar_list[0] as! CallEventType
     let activeCall: ActiveCallDto? = nilOrValue(pigeonVar_list[1])
     let error: CallErrorDto? = nilOrValue(pigeonVar_list[2])
+    let audioRoute: AudioRoute? = nilOrValue(pigeonVar_list[3])
 
     return CallEventDto(
       type: type,
       activeCall: activeCall,
-      error: error
+      error: error,
+      audioRoute: audioRoute
     )
   }
   func toList() -> [Any?] {
@@ -205,6 +252,7 @@ struct CallEventDto {
       type,
       activeCall,
       error,
+      audioRoute,
     ]
   }
 }
@@ -237,6 +285,54 @@ struct PlaceCallRequest {
   }
 }
 
+/// Generated class from Pigeon that represents data sent in messages.
+struct VoiceConfig {
+  var ringbackAssetPath: String? = nil
+  var connectToneAssetPath: String? = nil
+  var disconnectToneAssetPath: String? = nil
+  var playRingback: Bool
+  var playConnectTone: Bool
+  var playDisconnectTone: Bool
+  var bringAppToForegroundOnAnswer: Bool
+  var bringAppToForegroundOnEnd: Bool
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> VoiceConfig? {
+    let ringbackAssetPath: String? = nilOrValue(pigeonVar_list[0])
+    let connectToneAssetPath: String? = nilOrValue(pigeonVar_list[1])
+    let disconnectToneAssetPath: String? = nilOrValue(pigeonVar_list[2])
+    let playRingback = pigeonVar_list[3] as! Bool
+    let playConnectTone = pigeonVar_list[4] as! Bool
+    let playDisconnectTone = pigeonVar_list[5] as! Bool
+    let bringAppToForegroundOnAnswer = pigeonVar_list[6] as! Bool
+    let bringAppToForegroundOnEnd = pigeonVar_list[7] as! Bool
+
+    return VoiceConfig(
+      ringbackAssetPath: ringbackAssetPath,
+      connectToneAssetPath: connectToneAssetPath,
+      disconnectToneAssetPath: disconnectToneAssetPath,
+      playRingback: playRingback,
+      playConnectTone: playConnectTone,
+      playDisconnectTone: playDisconnectTone,
+      bringAppToForegroundOnAnswer: bringAppToForegroundOnAnswer,
+      bringAppToForegroundOnEnd: bringAppToForegroundOnEnd
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      ringbackAssetPath,
+      connectToneAssetPath,
+      disconnectToneAssetPath,
+      playRingback,
+      playConnectTone,
+      playDisconnectTone,
+      bringAppToForegroundOnAnswer,
+      bringAppToForegroundOnEnd,
+    ]
+  }
+}
+
 private class VoiceApiPigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
@@ -249,17 +345,27 @@ private class VoiceApiPigeonCodecReader: FlutterStandardReader {
     case 130:
       let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
       if let enumResultAsInt = enumResultAsInt {
-        return CallEventType(rawValue: enumResultAsInt)
+        return AudioRoute(rawValue: enumResultAsInt)
       }
       return nil
     case 131:
-      return ActiveCallDto.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return CallEventType(rawValue: enumResultAsInt)
+      }
+      return nil
     case 132:
-      return CallErrorDto.fromList(self.readValue() as! [Any?])
+      return AudioRouteInfo.fromList(self.readValue() as! [Any?])
     case 133:
-      return CallEventDto.fromList(self.readValue() as! [Any?])
+      return ActiveCallDto.fromList(self.readValue() as! [Any?])
     case 134:
+      return CallErrorDto.fromList(self.readValue() as! [Any?])
+    case 135:
+      return CallEventDto.fromList(self.readValue() as! [Any?])
+    case 136:
       return PlaceCallRequest.fromList(self.readValue() as! [Any?])
+    case 137:
+      return VoiceConfig.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -271,20 +377,29 @@ private class VoiceApiPigeonCodecWriter: FlutterStandardWriter {
     if let value = value as? CallDirection {
       super.writeByte(129)
       super.writeValue(value.rawValue)
-    } else if let value = value as? CallEventType {
+    } else if let value = value as? AudioRoute {
       super.writeByte(130)
       super.writeValue(value.rawValue)
-    } else if let value = value as? ActiveCallDto {
+    } else if let value = value as? CallEventType {
       super.writeByte(131)
-      super.writeValue(value.toList())
-    } else if let value = value as? CallErrorDto {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? AudioRouteInfo {
       super.writeByte(132)
       super.writeValue(value.toList())
-    } else if let value = value as? CallEventDto {
+    } else if let value = value as? ActiveCallDto {
       super.writeByte(133)
       super.writeValue(value.toList())
-    } else if let value = value as? PlaceCallRequest {
+    } else if let value = value as? CallErrorDto {
       super.writeByte(134)
+      super.writeValue(value.toList())
+    } else if let value = value as? CallEventDto {
+      super.writeByte(135)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlaceCallRequest {
+      super.writeByte(136)
+      super.writeValue(value.toList())
+    } else if let value = value as? VoiceConfig {
+      super.writeByte(137)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -323,6 +438,11 @@ protocol VoiceHostApi {
   func getActiveCall(completion: @escaping (Result<ActiveCallDto?, Error>) -> Void)
   func hasMicPermission(completion: @escaping (Result<Bool, Error>) -> Void)
   func requestMicPermission(completion: @escaping (Result<Bool, Error>) -> Void)
+  func configure(config: VoiceConfig, completion: @escaping (Result<Void, Error>) -> Void)
+  func setAudioRoute(route: AudioRoute, completion: @escaping (Result<Void, Error>) -> Void)
+  func getAudioRoute(completion: @escaping (Result<AudioRoute, Error>) -> Void)
+  func listAudioRoutes(completion: @escaping (Result<[AudioRouteInfo], Error>) -> Void)
+  func bringAppToForeground(completion: @escaping (Result<Void, Error>) -> Void)
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -552,6 +672,85 @@ class VoiceHostApiSetup {
       }
     } else {
       requestMicPermissionChannel.setMessageHandler(nil)
+    }
+    let configureChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.configure\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      configureChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let configArg = args[0] as! VoiceConfig
+        api.configure(config: configArg) { result in
+          switch result {
+          case .success:
+            reply(wrapResult(nil))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      configureChannel.setMessageHandler(nil)
+    }
+    let setAudioRouteChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.setAudioRoute\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setAudioRouteChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let routeArg = args[0] as! AudioRoute
+        api.setAudioRoute(route: routeArg) { result in
+          switch result {
+          case .success:
+            reply(wrapResult(nil))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      setAudioRouteChannel.setMessageHandler(nil)
+    }
+    let getAudioRouteChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.getAudioRoute\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      getAudioRouteChannel.setMessageHandler { _, reply in
+        api.getAudioRoute { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      getAudioRouteChannel.setMessageHandler(nil)
+    }
+    let listAudioRoutesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.listAudioRoutes\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      listAudioRoutesChannel.setMessageHandler { _, reply in
+        api.listAudioRoutes { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      listAudioRoutesChannel.setMessageHandler(nil)
+    }
+    let bringAppToForegroundChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.bringAppToForeground\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      bringAppToForegroundChannel.setMessageHandler { _, reply in
+        api.bringAppToForeground { result in
+          switch result {
+          case .success:
+            reply(wrapResult(nil))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      bringAppToForegroundChannel.setMessageHandler(nil)
     }
   }
 }

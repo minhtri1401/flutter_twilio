@@ -30,6 +30,13 @@ enum CallDirection {
   outgoing,
 }
 
+enum AudioRoute {
+  earpiece,
+  speaker,
+  bluetooth,
+  wired,
+}
+
 /// Mirrors Dart's CallEvent enum. Keep this in sync 1:1 with
 /// lib/src/voice/models/call_event.dart — add new values to both sides.
 enum CallEventType {
@@ -55,7 +62,39 @@ enum CallEventType {
   unmute,
   speakerOn,
   speakerOff,
+  audioRouteChanged,
   error,
+}
+
+class AudioRouteInfo {
+  AudioRouteInfo({
+    required this.route,
+    required this.isActive,
+    this.deviceName,
+  });
+
+  AudioRoute route;
+
+  bool isActive;
+
+  String? deviceName;
+
+  Object encode() {
+    return <Object?>[
+      route,
+      isActive,
+      deviceName,
+    ];
+  }
+
+  static AudioRouteInfo decode(Object result) {
+    result as List<Object?>;
+    return AudioRouteInfo(
+      route: result[0]! as AudioRoute,
+      isActive: result[1]! as bool,
+      deviceName: result[2] as String?,
+    );
+  }
 }
 
 class ActiveCallDto {
@@ -68,6 +107,8 @@ class ActiveCallDto {
     required this.isMuted,
     required this.isOnHold,
     required this.isOnSpeaker,
+    required this.currentRoute,
+    this.connectedAt,
     this.customParameters,
   });
 
@@ -87,6 +128,10 @@ class ActiveCallDto {
 
   bool isOnSpeaker;
 
+  AudioRoute currentRoute;
+
+  int? connectedAt;
+
   Map<String?, String?>? customParameters;
 
   Object encode() {
@@ -99,6 +144,8 @@ class ActiveCallDto {
       isMuted,
       isOnHold,
       isOnSpeaker,
+      currentRoute,
+      connectedAt,
       customParameters,
     ];
   }
@@ -114,7 +161,9 @@ class ActiveCallDto {
       isMuted: result[5]! as bool,
       isOnHold: result[6]! as bool,
       isOnSpeaker: result[7]! as bool,
-      customParameters: (result[8] as Map<Object?, Object?>?)?.cast<String?, String?>(),
+      currentRoute: result[8]! as AudioRoute,
+      connectedAt: result[9] as int?,
+      customParameters: (result[10] as Map<Object?, Object?>?)?.cast<String?, String?>(),
     );
   }
 }
@@ -155,6 +204,7 @@ class CallEventDto {
     required this.type,
     this.activeCall,
     this.error,
+    this.audioRoute,
   });
 
   CallEventType type;
@@ -163,11 +213,14 @@ class CallEventDto {
 
   CallErrorDto? error;
 
+  AudioRoute? audioRoute;
+
   Object encode() {
     return <Object?>[
       type,
       activeCall,
       error,
+      audioRoute,
     ];
   }
 
@@ -177,6 +230,7 @@ class CallEventDto {
       type: result[0]! as CallEventType,
       activeCall: result[1] as ActiveCallDto?,
       error: result[2] as CallErrorDto?,
+      audioRoute: result[3] as AudioRoute?,
     );
   }
 }
@@ -212,6 +266,62 @@ class PlaceCallRequest {
   }
 }
 
+class VoiceConfig {
+  VoiceConfig({
+    this.ringbackAssetPath,
+    this.connectToneAssetPath,
+    this.disconnectToneAssetPath,
+    required this.playRingback,
+    required this.playConnectTone,
+    required this.playDisconnectTone,
+    required this.bringAppToForegroundOnAnswer,
+    required this.bringAppToForegroundOnEnd,
+  });
+
+  String? ringbackAssetPath;
+
+  String? connectToneAssetPath;
+
+  String? disconnectToneAssetPath;
+
+  bool playRingback;
+
+  bool playConnectTone;
+
+  bool playDisconnectTone;
+
+  bool bringAppToForegroundOnAnswer;
+
+  bool bringAppToForegroundOnEnd;
+
+  Object encode() {
+    return <Object?>[
+      ringbackAssetPath,
+      connectToneAssetPath,
+      disconnectToneAssetPath,
+      playRingback,
+      playConnectTone,
+      playDisconnectTone,
+      bringAppToForegroundOnAnswer,
+      bringAppToForegroundOnEnd,
+    ];
+  }
+
+  static VoiceConfig decode(Object result) {
+    result as List<Object?>;
+    return VoiceConfig(
+      ringbackAssetPath: result[0] as String?,
+      connectToneAssetPath: result[1] as String?,
+      disconnectToneAssetPath: result[2] as String?,
+      playRingback: result[3]! as bool,
+      playConnectTone: result[4]! as bool,
+      playDisconnectTone: result[5]! as bool,
+      bringAppToForegroundOnAnswer: result[6]! as bool,
+      bringAppToForegroundOnEnd: result[7]! as bool,
+    );
+  }
+}
+
 
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
@@ -223,20 +333,29 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is CallDirection) {
       buffer.putUint8(129);
       writeValue(buffer, value.index);
-    }    else if (value is CallEventType) {
+    }    else if (value is AudioRoute) {
       buffer.putUint8(130);
       writeValue(buffer, value.index);
-    }    else if (value is ActiveCallDto) {
+    }    else if (value is CallEventType) {
       buffer.putUint8(131);
-      writeValue(buffer, value.encode());
-    }    else if (value is CallErrorDto) {
+      writeValue(buffer, value.index);
+    }    else if (value is AudioRouteInfo) {
       buffer.putUint8(132);
       writeValue(buffer, value.encode());
-    }    else if (value is CallEventDto) {
+    }    else if (value is ActiveCallDto) {
       buffer.putUint8(133);
       writeValue(buffer, value.encode());
-    }    else if (value is PlaceCallRequest) {
+    }    else if (value is CallErrorDto) {
       buffer.putUint8(134);
+      writeValue(buffer, value.encode());
+    }    else if (value is CallEventDto) {
+      buffer.putUint8(135);
+      writeValue(buffer, value.encode());
+    }    else if (value is PlaceCallRequest) {
+      buffer.putUint8(136);
+      writeValue(buffer, value.encode());
+    }    else if (value is VoiceConfig) {
+      buffer.putUint8(137);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -251,15 +370,22 @@ class _PigeonCodec extends StandardMessageCodec {
         return value == null ? null : CallDirection.values[value];
       case 130: 
         final int? value = readValue(buffer) as int?;
-        return value == null ? null : CallEventType.values[value];
+        return value == null ? null : AudioRoute.values[value];
       case 131: 
-        return ActiveCallDto.decode(readValue(buffer)!);
+        final int? value = readValue(buffer) as int?;
+        return value == null ? null : CallEventType.values[value];
       case 132: 
-        return CallErrorDto.decode(readValue(buffer)!);
+        return AudioRouteInfo.decode(readValue(buffer)!);
       case 133: 
-        return CallEventDto.decode(readValue(buffer)!);
+        return ActiveCallDto.decode(readValue(buffer)!);
       case 134: 
+        return CallErrorDto.decode(readValue(buffer)!);
+      case 135: 
+        return CallEventDto.decode(readValue(buffer)!);
+      case 136: 
         return PlaceCallRequest.decode(readValue(buffer)!);
+      case 137: 
+        return VoiceConfig.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -599,6 +725,126 @@ class VoiceHostApi {
       );
     } else {
       return (pigeonVar_replyList[0] as bool?)!;
+    }
+  }
+
+  Future<void> configure(VoiceConfig config) async {
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.configure$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final List<Object?>? pigeonVar_replyList =
+        await pigeonVar_channel.send(<Object?>[config]) as List<Object?>?;
+    if (pigeonVar_replyList == null) {
+      throw _createConnectionError(pigeonVar_channelName);
+    } else if (pigeonVar_replyList.length > 1) {
+      throw PlatformException(
+        code: pigeonVar_replyList[0]! as String,
+        message: pigeonVar_replyList[1] as String?,
+        details: pigeonVar_replyList[2],
+      );
+    } else {
+      return;
+    }
+  }
+
+  Future<void> setAudioRoute(AudioRoute route) async {
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.setAudioRoute$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final List<Object?>? pigeonVar_replyList =
+        await pigeonVar_channel.send(<Object?>[route]) as List<Object?>?;
+    if (pigeonVar_replyList == null) {
+      throw _createConnectionError(pigeonVar_channelName);
+    } else if (pigeonVar_replyList.length > 1) {
+      throw PlatformException(
+        code: pigeonVar_replyList[0]! as String,
+        message: pigeonVar_replyList[1] as String?,
+        details: pigeonVar_replyList[2],
+      );
+    } else {
+      return;
+    }
+  }
+
+  Future<AudioRoute> getAudioRoute() async {
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.getAudioRoute$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final List<Object?>? pigeonVar_replyList =
+        await pigeonVar_channel.send(null) as List<Object?>?;
+    if (pigeonVar_replyList == null) {
+      throw _createConnectionError(pigeonVar_channelName);
+    } else if (pigeonVar_replyList.length > 1) {
+      throw PlatformException(
+        code: pigeonVar_replyList[0]! as String,
+        message: pigeonVar_replyList[1] as String?,
+        details: pigeonVar_replyList[2],
+      );
+    } else if (pigeonVar_replyList[0] == null) {
+      throw PlatformException(
+        code: 'null-error',
+        message: 'Host platform returned null value for non-null return value.',
+      );
+    } else {
+      return (pigeonVar_replyList[0] as AudioRoute?)!;
+    }
+  }
+
+  Future<List<AudioRouteInfo>> listAudioRoutes() async {
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.listAudioRoutes$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final List<Object?>? pigeonVar_replyList =
+        await pigeonVar_channel.send(null) as List<Object?>?;
+    if (pigeonVar_replyList == null) {
+      throw _createConnectionError(pigeonVar_channelName);
+    } else if (pigeonVar_replyList.length > 1) {
+      throw PlatformException(
+        code: pigeonVar_replyList[0]! as String,
+        message: pigeonVar_replyList[1] as String?,
+        details: pigeonVar_replyList[2],
+      );
+    } else if (pigeonVar_replyList[0] == null) {
+      throw PlatformException(
+        code: 'null-error',
+        message: 'Host platform returned null value for non-null return value.',
+      );
+    } else {
+      return (pigeonVar_replyList[0] as List<Object?>?)!.cast<AudioRouteInfo>();
+    }
+  }
+
+  Future<void> bringAppToForeground() async {
+    final String pigeonVar_channelName = 'dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.bringAppToForeground$pigeonVar_messageChannelSuffix';
+    final BasicMessageChannel<Object?> pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final List<Object?>? pigeonVar_replyList =
+        await pigeonVar_channel.send(null) as List<Object?>?;
+    if (pigeonVar_replyList == null) {
+      throw _createConnectionError(pigeonVar_channelName);
+    } else if (pigeonVar_replyList.length > 1) {
+      throw PlatformException(
+        code: pigeonVar_replyList[0]! as String,
+        message: pigeonVar_replyList[1] as String?,
+        details: pigeonVar_replyList[2],
+      );
+    } else {
+      return;
     }
   }
 }
