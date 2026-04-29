@@ -23,8 +23,13 @@ enum CallEvent {
   unhold,
   mute,
   unmute,
+
+  @Deprecated('Listen for audioRouteChanged and read active.currentRoute. Will be removed in 0.3.0.')
   speakerOn,
+  @Deprecated('Listen for audioRouteChanged and read active.currentRoute. Will be removed in 0.3.0.')
   speakerOff,
+
+  audioRouteChanged,
   error;
 
   static CallEvent fromPigeon(CallEventType type) {
@@ -69,10 +74,16 @@ enum CallEvent {
         return CallEvent.mute;
       case CallEventType.unmute:
         return CallEvent.unmute;
+      // ignore: deprecated_member_use_from_same_package
       case CallEventType.speakerOn:
+        // ignore: deprecated_member_use_from_same_package
         return CallEvent.speakerOn;
+      // ignore: deprecated_member_use_from_same_package
       case CallEventType.speakerOff:
+        // ignore: deprecated_member_use_from_same_package
         return CallEvent.speakerOff;
+      case CallEventType.audioRouteChanged:
+        return CallEvent.audioRouteChanged;
       case CallEventType.error:
         return CallEvent.error;
     }
