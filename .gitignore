@@ -58,3 +58,6 @@ build/
 *.log
 
 .firebase/
+
+# Intermediate WAVs from tool/generate_tones.py
+tool/_tones_tmp/
