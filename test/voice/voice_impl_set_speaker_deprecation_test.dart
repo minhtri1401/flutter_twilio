@@ -1,3 +1,4 @@
+// ignore_for_file: non_constant_identifier_names
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:twilio_voice_sms/src/voice/generated/voice_api.g.dart' as pigeon;
