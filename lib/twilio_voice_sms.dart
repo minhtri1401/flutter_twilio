@@ -5,6 +5,7 @@ export 'src/flutter_twilio.dart' show FlutterTwilio;
 
 // Voice
 export 'src/voice/voice_api.dart' show VoiceApi;
+export 'src/voice/voice_config.dart' show VoiceConfig;
 export 'src/voice/errors.dart'
     show
         FlutterTwilioException,
@@ -18,8 +19,14 @@ export 'src/voice/errors.dart'
         TwilioSdkException,
         VoiceAudioSessionException,
         VoiceRegistrationException,
-        VoiceConnectionException;
+        VoiceConnectionException,
+        BluetoothUnavailableException,
+        WiredUnavailableException,
+        AudioRouteFailedException,
+        ToneAssetNotFoundException,
+        NotificationPermissionException;
 export 'src/voice/models/active_call.dart' show ActiveCall;
+export 'src/voice/models/audio_route.dart' show AudioRoute, AudioRouteInfo;
 export 'src/voice/models/call.dart' show Call;
 export 'src/voice/models/call_event.dart' show CallEvent;
 export 'src/voice/generated/voice_api.g.dart' show CallDirection;
