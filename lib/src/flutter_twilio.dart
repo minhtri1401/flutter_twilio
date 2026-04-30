@@ -106,9 +106,12 @@ class FlutterTwilio {
     () async {
       try {
         await (_voice as VoiceImpl).configure(config);
-      } catch (_) {
-        // Surface real failures via the voice event stream during real runs;
-        // unit tests without a platform channel intentionally swallow.
+      } catch (e) {
+        // MissingPluginException is expected in unit tests without a platform
+        // channel — suppress it to keep test output clean.
+        if (!e.toString().contains('MissingPluginException')) {
+          debugPrint('FlutterTwilio: configuration failed: $e');
+        }
       }
     }();
   }
