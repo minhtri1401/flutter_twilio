@@ -8,6 +8,9 @@ import com.twilio.voice.Call
 import com.twilio.voice.CallException
 import com.twilio.voice.CallInvite
 import com.twilio.voice.CancelledCallInvite
+import com.dev.flutter_twilio.tone.CallPhase
+import com.dev.flutter_twilio.tone.TVRingbackController
+import com.dev.flutter_twilio.tone.TVTonePlayer
 import com.dev.flutter_twilio.types.CallDirection
 import com.twilio.voice.ConnectOptions
 import com.twilio.voice.Voice
@@ -52,6 +55,29 @@ object TVCallManager : Call.Listener {
     @Volatile
     var activeCustomParameters: Map<String, String> = emptyMap()
         private set
+
+    private var ringback: TVRingbackController? = null
+    private var connectTonePlayer: TVTonePlayer? = null
+    private var disconnectTonePlayer: TVTonePlayer? = null
+    private var config: VoiceConfigLocal = VoiceConfigLocal.default
+
+    fun applyConfig(
+        cfg: VoiceConfigLocal,
+        ringbackPlayer: TVTonePlayer,
+        connectPlayer: TVTonePlayer,
+        disconnectPlayer: TVTonePlayer,
+    ) {
+        config = cfg
+        ringback = TVRingbackController(
+            ringbackPlayer,
+            enabled = cfg.playRingback,
+            customAssetKey = cfg.ringbackAssetPath,
+        )
+        connectTonePlayer = connectPlayer
+        disconnectTonePlayer = disconnectPlayer
+    }
+
+    val activeConfig: VoiceConfigLocal get() = config
 
     var listener: TVCallManagerListener? = null
         set(value) {
@@ -170,6 +196,7 @@ object TVCallManager : Call.Listener {
         activeCustomParameters = params.filterKeys { it != "To" && it != "From" }
         TVCallAudioService.startService(context, to ?: "Unknown")
         _audioManager?.requestAudioFocus()
+        ringback?.onCallEvent(CallPhase.OUTGOING_CONNECTING)
     }
 
     fun hangUp(): Boolean {
@@ -207,11 +234,21 @@ object TVCallManager : Call.Listener {
         Log.d(TAG, "onConnected: ${call.sid}")
         activeCall = call
         connectedAtMillis = System.currentTimeMillis()
+        ringback?.onCallEvent(CallPhase.CONNECTED)
+        if (config.playConnectTone) {
+            connectTonePlayer?.play(
+                flutterAssetKey = config.connectToneAssetPath,
+                bundledAssetPath = "flutter_twilio/connect_tone.ogg",
+                looping = false,
+                forSignalling = true,
+            )
+        }
         mainHandler.post { listener?.onCallConnected(call) }
     }
 
     override fun onConnectFailure(call: Call, error: CallException) {
         Log.e(TAG, "onConnectFailure: ${error.errorCode} ${error.message}")
+        ringback?.onCallEvent(CallPhase.ERROR)
         cleanup()
         mainHandler.post { listener?.onCallConnectFailure(call, error) }
     }
@@ -228,6 +265,15 @@ object TVCallManager : Call.Listener {
 
     override fun onDisconnected(call: Call, error: CallException?) {
         Log.d(TAG, "onDisconnected: ${call.sid}, error: ${error?.message}")
+        ringback?.onCallEvent(CallPhase.DISCONNECTED)
+        if (config.playDisconnectTone) {
+            disconnectTonePlayer?.play(
+                flutterAssetKey = config.disconnectToneAssetPath,
+                bundledAssetPath = "flutter_twilio/disconnect_tone.ogg",
+                looping = false,
+                forSignalling = true,
+            )
+        }
         cleanup()
         mainHandler.post { listener?.onCallDisconnected(call, error) }
     }

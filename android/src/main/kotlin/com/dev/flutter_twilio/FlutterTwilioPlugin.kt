@@ -18,7 +18,9 @@ import com.dev.flutter_twilio.handler.TVCallMethodHandler
 import com.dev.flutter_twilio.handler.TVPermissionMethodHandler
 import com.dev.flutter_twilio.handler.TVRegistrationMethodHandler
 import com.dev.flutter_twilio.service.TVCallManager
+import com.dev.flutter_twilio.service.VoiceConfigLocal
 import com.dev.flutter_twilio.storage.StorageImpl
+import com.dev.flutter_twilio.tone.TVTonePlayer
 import com.twilio.voice.CallException
 import com.twilio.voice.RegistrationException
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -78,6 +80,12 @@ class FlutterTwilioPlugin :
         registrationHandler = TVRegistrationMethodHandler(state, emitter)
 
         TVCallManager.init(context)
+        TVCallManager.applyConfig(
+            VoiceConfigLocal.default,
+            TVTonePlayer(context),
+            TVTonePlayer(context),
+            TVTonePlayer(context),
+        )
         TVCallManager.listener = callEventsReceiver
 
         ActiveCallSnapshotter.provider = { snapshotActiveCall() }
