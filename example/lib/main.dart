@@ -207,11 +207,12 @@ class _DemoHomeState extends State<DemoHome> {
       );
 
   Future<void> _toggleSpeaker() => _voiceAction(
-        'setSpeaker',
+        'setAudioRoute',
         () async {
-          final next = !_isSpeaker;
-          await FlutterTwilio.instance.voice.setSpeaker(next);
-          if (mounted) setState(() => _isSpeaker = next);
+          final route =
+              _isSpeaker ? AudioRoute.earpiece : AudioRoute.speaker;
+          await FlutterTwilio.instance.voice.setAudioRoute(route);
+          if (mounted) setState(() => _isSpeaker = !_isSpeaker);
         },
       );
 
