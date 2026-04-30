@@ -33,6 +33,11 @@ object TVCallManager : Call.Listener {
     var callStartedAtMillis: Long = 0L
         private set
 
+    /** Epoch millis when the call's media first connected. `null` while ringing/connecting. */
+    @Volatile
+    var connectedAtMillis: Long? = null
+        private set
+
     /** Caller identifier of the current call (outgoing: from our identity; incoming: remote). */
     @Volatile
     var activeCallFrom: String = ""
@@ -201,6 +206,7 @@ object TVCallManager : Call.Listener {
     override fun onConnected(call: Call) {
         Log.d(TAG, "onConnected: ${call.sid}")
         activeCall = call
+        connectedAtMillis = System.currentTimeMillis()
         mainHandler.post { listener?.onCallConnected(call) }
     }
 
@@ -231,6 +237,7 @@ object TVCallManager : Call.Listener {
         activeCall = null
         activeCallInvite = null
         callStartedAtMillis = 0L
+        connectedAtMillis = null
         activeCallFrom = ""
         activeCallTo = ""
         activeCustomParameters = emptyMap()

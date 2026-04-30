@@ -254,7 +254,8 @@ class FlutterTwilioPlugin :
             isMuted = state.isMuted,
             isOnHold = state.isHolding,
             isOnSpeaker = state.isSpeakerOn,
-            currentRoute = AudioRoute.EARPIECE,
+            currentRoute = audioRouter.current(),
+            connectedAt = TVCallManager.connectedAtMillis,
             customParameters = custom,
         )
     }

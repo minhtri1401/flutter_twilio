@@ -10,5 +10,6 @@ data class TVCallState(
     val isMuted: Boolean = false,
     val isOnHold: Boolean = false,
     val isSpeakerOn: Boolean = false,
-    val isBluetoothOn: Boolean = false
+    val isBluetoothOn: Boolean = false,
+    val connectedAt: Long? = null,
 )
