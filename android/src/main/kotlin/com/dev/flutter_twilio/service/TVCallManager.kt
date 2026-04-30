@@ -8,6 +8,7 @@ import com.twilio.voice.Call
 import com.twilio.voice.CallException
 import com.twilio.voice.CallInvite
 import com.twilio.voice.CancelledCallInvite
+import com.dev.flutter_twilio.notification.TVIncomingCallNotifier
 import com.dev.flutter_twilio.tone.CallPhase
 import com.dev.flutter_twilio.tone.TVRingbackController
 import com.dev.flutter_twilio.tone.TVTonePlayer
@@ -138,6 +139,7 @@ object TVCallManager : Call.Listener {
         callStartedAtMillis = System.currentTimeMillis()
         TVCallAudioService.startService(context, invite.from ?: "Unknown")
         _audioManager?.requestAudioFocus()
+        TVIncomingCallNotifier.cancel(context)
         return true
     }
 
@@ -152,6 +154,7 @@ object TVCallManager : Call.Listener {
         activeCustomParameters = emptyMap()
         activeCallFrom = ""
         activeCallTo = ""
+        TVIncomingCallNotifier.cancel(context)
         return true
     }
 

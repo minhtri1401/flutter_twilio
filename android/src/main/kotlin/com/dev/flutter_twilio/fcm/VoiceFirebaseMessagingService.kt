@@ -4,6 +4,8 @@ import android.content.Intent
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import com.dev.flutter_twilio.notification.TVIncomingCallNotifier
+import com.dev.flutter_twilio.notification.TVMissedCallNotifier
 import com.dev.flutter_twilio.service.TVCallManager
 import com.twilio.voice.CallException
 import com.twilio.voice.CallInvite
@@ -53,11 +55,21 @@ class VoiceFirebaseMessagingService : FirebaseMessagingService(), MessageListene
         // TVCallManager stores the invite and notifies the plugin via TVCallManagerListener.
         // If the plugin isn't ready yet, the listener setter replays this invite when the plugin attaches.
         TVCallManager.handleCallInvite(callInvite)
+        TVIncomingCallNotifier.show(
+            applicationContext,
+            callInvite.callSid,
+            callInvite.from ?: "Unknown",
+        )
     }
 
     override fun onCancelledCallInvite(cancelledCallInvite: CancelledCallInvite, callException: CallException?) {
         Log.d(TAG, "onCancelledCallInvite: ${cancelledCallInvite.callSid}", callException)
         TVCallManager.handleCancelledCallInvite(cancelledCallInvite)
+        TVIncomingCallNotifier.cancel(applicationContext)
+        TVMissedCallNotifier.show(
+            applicationContext,
+            cancelledCallInvite.from ?: "Unknown",
+        )
     }
     // endregion
 }
