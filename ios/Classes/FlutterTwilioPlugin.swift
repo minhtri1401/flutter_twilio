@@ -209,6 +209,30 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
         }
     }
 
+    func configure(config: VoiceConfig, completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { /* TODO(Task 28): apply VoiceConfig */ }
+    }
+
+    func setAudioRoute(route: AudioRoute, completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) {
+            throw FlutterTwilioError.of("not_initialized", "setAudioRoute not yet wired")
+        }
+    }
+
+    func getAudioRoute(completion: @escaping (Result<AudioRoute, Error>) -> Void) {
+        guardCall(completion) { AudioRoute.earpiece }
+    }
+
+    func listAudioRoutes(completion: @escaping (Result<[AudioRouteInfo], Error>) -> Void) {
+        guardCall(completion) { [AudioRouteInfo]() }
+    }
+
+    func bringAppToForeground(completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) {
+            throw FlutterTwilioError.of("not_initialized", "bringAppToForeground not yet wired")
+        }
+    }
+
     // MARK: - Helpers
 
     private func guardCall<T>(

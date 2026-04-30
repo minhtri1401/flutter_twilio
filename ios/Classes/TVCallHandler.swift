@@ -243,6 +243,8 @@ final class TVCallHandler {
             isMuted: state.isMuted,
             isOnHold: state.isOnHold,
             isOnSpeaker: audioHandler.isSpeakerOn,
+            currentRoute: TVAudioRouteMapper.currentRoute(),
+            connectedAt: state.connectedAtMillis,
             customParameters: custom
         )
     }
@@ -266,6 +268,8 @@ final class TVCallHandler {
             isMuted: state.isMuted,
             isOnHold: state.isOnHold,
             isOnSpeaker: audioHandler.isSpeakerOn,
+            currentRoute: TVAudioRouteMapper.currentRoute(),
+            connectedAt: state.connectedAtMillis,
             customParameters: [:]
         )
     }
