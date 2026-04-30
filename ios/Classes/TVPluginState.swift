@@ -28,6 +28,13 @@ final class TVPluginState {
     /// Start-time of the current call, captured on `callDidConnect`.
     var callStartedAtMillis: Int64 = 0
 
+    /// Epoch millis when the call's media first connected. `nil` while ringing/connecting.
+    var connectedAtMillis: Int64? = nil
+
+    /// Active VoiceConfig — defaults to a "ringback enabled, no custom tones"
+    /// config. Replaced by `FlutterTwilioPlugin.configure(...)`.
+    var voiceConfig: TVVoiceConfig = .defaultConfig
+
     /// True while a Twilio `Call` or `CallInvite` is tracked in state.
     /// Set by the CallHandler on place/answer/incoming, cleared in
     /// `callDisconnected`. Used by `place()` / `answer()` to reject new

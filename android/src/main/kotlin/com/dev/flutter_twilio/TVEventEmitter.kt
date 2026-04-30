@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.dev.flutter_twilio.generated.ActiveCallDto
+import com.dev.flutter_twilio.generated.AudioRoute
 import com.dev.flutter_twilio.generated.CallErrorDto
 import com.dev.flutter_twilio.generated.CallEventDto
 import com.dev.flutter_twilio.generated.CallEventType
@@ -50,8 +51,14 @@ class TVEventEmitter {
         type: CallEventType,
         activeCall: ActiveCallDto? = null,
         error: CallErrorDto? = null,
+        audioRoute: AudioRoute? = null,
     ) {
-        val dto = CallEventDto(type = type, activeCall = activeCall, error = error)
+        val dto = CallEventDto(
+            type = type,
+            activeCall = activeCall,
+            error = error,
+            audioRoute = audioRoute,
+        )
         postToMain {
             val a = api ?: return@postToMain
             try {

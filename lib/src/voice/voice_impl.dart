@@ -4,11 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'errors.dart';
-import 'generated/voice_api.g.dart';
+import 'generated/voice_api.g.dart' hide AudioRoute, AudioRouteInfo, VoiceConfig;
 import 'models/active_call.dart';
+import 'models/audio_route.dart';
 import 'models/call.dart';
 import 'models/call_event.dart';
 import 'voice_api.dart';
+import 'voice_config.dart';
 
 class VoiceImpl implements VoiceApi, VoiceFlutterApi {
   VoiceImpl({VoiceHostApi? host}) : _host = host ?? VoiceHostApi() {
@@ -70,8 +72,33 @@ class VoiceImpl implements VoiceApi, VoiceFlutterApi {
   Future<void> setOnHold(bool onHold) => _guard(() => _host.setOnHold(onHold));
 
   @override
+  Future<void> setAudioRoute(AudioRoute route) =>
+      _guard(() => _host.setAudioRoute(route.toPigeon()));
+
+  @override
+  Future<AudioRoute> getAudioRoute() =>
+      _guard(() async => AudioRoute.fromPigeon(await _host.getAudioRoute()));
+
+  @override
+  Future<List<AudioRouteInfo>> listAudioRoutes() => _guard(() async {
+        final list = await _host.listAudioRoutes();
+        return list.map(AudioRouteInfo.fromDto).toList(growable: false);
+      });
+
+  @override
+  Future<void> bringAppToForeground() =>
+      _guard(() => _host.bringAppToForeground());
+
+  Future<void> configure(VoiceConfig config) =>
+      _guard(() => _host.configure(config.toPigeon()));
+
+  @override
+  @Deprecated(
+    'Use setAudioRoute(AudioRoute.speaker) / setAudioRoute(AudioRoute.earpiece). '
+    'Will be removed in 0.3.0.',
+  )
   Future<void> setSpeaker(bool onSpeaker) =>
-      _guard(() => _host.setSpeaker(onSpeaker));
+      setAudioRoute(onSpeaker ? AudioRoute.speaker : AudioRoute.earpiece);
 
   @override
   Future<void> sendDigits(String digits) =>

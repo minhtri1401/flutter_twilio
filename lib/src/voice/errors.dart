@@ -80,6 +80,17 @@ class VoiceException extends FlutterTwilioException {
             message: message, details: details);
       case 'connection_error':
         return VoiceConnectionException(message: message, details: details);
+      case 'bluetooth_unavailable':
+        return BluetoothUnavailableException(message: message, details: details);
+      case 'wired_unavailable':
+        return WiredUnavailableException(message: message, details: details);
+      case 'audio_route_failed':
+        return AudioRouteFailedException(message: message, details: details);
+      case 'tone_asset_not_found':
+        return ToneAssetNotFoundException(message: message, details: details);
+      case 'notification_permission_denied':
+        return NotificationPermissionException(
+            message: message, details: details);
       default:
         return VoiceException(code: code, message: message, details: details);
     }
@@ -185,4 +196,47 @@ class VoiceConnectionException extends VoiceException {
     required super.message,
     super.details = const {},
   }) : super(code: 'connection_error');
+}
+
+/// Tried to switch to `AudioRoute.bluetooth` with no BT device connected,
+/// or with `BLUETOOTH_CONNECT` permission missing on Android 12+.
+class BluetoothUnavailableException extends VoiceException {
+  BluetoothUnavailableException({
+    required super.message,
+    super.details = const {},
+  }) : super(code: 'bluetooth_unavailable');
+}
+
+/// Tried to switch to `AudioRoute.wired` with no wired output detected.
+class WiredUnavailableException extends VoiceException {
+  WiredUnavailableException({
+    required super.message,
+    super.details = const {},
+  }) : super(code: 'wired_unavailable');
+}
+
+/// A native audio-session operation failed during `setAudioRoute`.
+/// `audio_session_error` is retained for non-routing audio failures.
+class AudioRouteFailedException extends VoiceException {
+  AudioRouteFailedException({
+    required super.message,
+    super.details = const {},
+  }) : super(code: 'audio_route_failed');
+}
+
+/// A `VoiceConfig` referenced a tone asset path that could not be resolved.
+class ToneAssetNotFoundException extends VoiceException {
+  ToneAssetNotFoundException({
+    required super.message,
+    super.details = const {},
+  }) : super(code: 'tone_asset_not_found');
+}
+
+/// Android-only: `POST_NOTIFICATIONS` denied while posting an incoming-call
+/// notification. iOS never throws this; the type exists for API symmetry.
+class NotificationPermissionException extends VoiceException {
+  NotificationPermissionException({
+    required super.message,
+    super.details = const {},
+  }) : super(code: 'notification_permission_denied');
 }

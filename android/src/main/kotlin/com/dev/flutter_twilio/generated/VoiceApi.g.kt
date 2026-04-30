@@ -60,6 +60,19 @@ enum class CallDirection(val raw: Int) {
   }
 }
 
+enum class AudioRoute(val raw: Int) {
+  EARPIECE(0),
+  SPEAKER(1),
+  BLUETOOTH(2),
+  WIRED(3);
+
+  companion object {
+    fun ofRaw(raw: Int): AudioRoute? {
+      return values().firstOrNull { it.raw == raw }
+    }
+  }
+}
+
 /**
  * Mirrors Dart's CallEvent enum. Keep this in sync 1:1 with
  * lib/src/voice/models/call_event.dart — add new values to both sides.
@@ -87,12 +100,37 @@ enum class CallEventType(val raw: Int) {
   UNMUTE(19),
   SPEAKER_ON(20),
   SPEAKER_OFF(21),
-  ERROR(22);
+  AUDIO_ROUTE_CHANGED(22),
+  ERROR(23);
 
   companion object {
     fun ofRaw(raw: Int): CallEventType? {
       return values().firstOrNull { it.raw == raw }
     }
+  }
+}
+
+/** Generated class from Pigeon that represents data sent in messages. */
+data class AudioRouteInfo (
+  val route: AudioRoute,
+  val isActive: Boolean,
+  val deviceName: String? = null
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): AudioRouteInfo {
+      val route = pigeonVar_list[0] as AudioRoute
+      val isActive = pigeonVar_list[1] as Boolean
+      val deviceName = pigeonVar_list[2] as String?
+      return AudioRouteInfo(route, isActive, deviceName)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      route,
+      isActive,
+      deviceName,
+    )
   }
 }
 
@@ -106,6 +144,8 @@ data class ActiveCallDto (
   val isMuted: Boolean,
   val isOnHold: Boolean,
   val isOnSpeaker: Boolean,
+  val currentRoute: AudioRoute,
+  val connectedAt: Long? = null,
   val customParameters: Map<String?, String?>? = null
 )
  {
@@ -119,8 +159,10 @@ data class ActiveCallDto (
       val isMuted = pigeonVar_list[5] as Boolean
       val isOnHold = pigeonVar_list[6] as Boolean
       val isOnSpeaker = pigeonVar_list[7] as Boolean
-      val customParameters = pigeonVar_list[8] as Map<String?, String?>?
-      return ActiveCallDto(sid, from, to, direction, startedAt, isMuted, isOnHold, isOnSpeaker, customParameters)
+      val currentRoute = pigeonVar_list[8] as AudioRoute
+      val connectedAt = pigeonVar_list[9] as Long?
+      val customParameters = pigeonVar_list[10] as Map<String?, String?>?
+      return ActiveCallDto(sid, from, to, direction, startedAt, isMuted, isOnHold, isOnSpeaker, currentRoute, connectedAt, customParameters)
     }
   }
   fun toList(): List<Any?> {
@@ -133,6 +175,8 @@ data class ActiveCallDto (
       isMuted,
       isOnHold,
       isOnSpeaker,
+      currentRoute,
+      connectedAt,
       customParameters,
     )
   }
@@ -166,7 +210,8 @@ data class CallErrorDto (
 data class CallEventDto (
   val type: CallEventType,
   val activeCall: ActiveCallDto? = null,
-  val error: CallErrorDto? = null
+  val error: CallErrorDto? = null,
+  val audioRoute: AudioRoute? = null
 )
  {
   companion object {
@@ -174,7 +219,8 @@ data class CallEventDto (
       val type = pigeonVar_list[0] as CallEventType
       val activeCall = pigeonVar_list[1] as ActiveCallDto?
       val error = pigeonVar_list[2] as CallErrorDto?
-      return CallEventDto(type, activeCall, error)
+      val audioRoute = pigeonVar_list[3] as AudioRoute?
+      return CallEventDto(type, activeCall, error, audioRoute)
     }
   }
   fun toList(): List<Any?> {
@@ -182,6 +228,7 @@ data class CallEventDto (
       type,
       activeCall,
       error,
+      audioRoute,
     )
   }
 }
@@ -209,6 +256,45 @@ data class PlaceCallRequest (
     )
   }
 }
+
+/** Generated class from Pigeon that represents data sent in messages. */
+data class VoiceConfig (
+  val ringbackAssetPath: String? = null,
+  val connectToneAssetPath: String? = null,
+  val disconnectToneAssetPath: String? = null,
+  val playRingback: Boolean,
+  val playConnectTone: Boolean,
+  val playDisconnectTone: Boolean,
+  val bringAppToForegroundOnAnswer: Boolean,
+  val bringAppToForegroundOnEnd: Boolean
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): VoiceConfig {
+      val ringbackAssetPath = pigeonVar_list[0] as String?
+      val connectToneAssetPath = pigeonVar_list[1] as String?
+      val disconnectToneAssetPath = pigeonVar_list[2] as String?
+      val playRingback = pigeonVar_list[3] as Boolean
+      val playConnectTone = pigeonVar_list[4] as Boolean
+      val playDisconnectTone = pigeonVar_list[5] as Boolean
+      val bringAppToForegroundOnAnswer = pigeonVar_list[6] as Boolean
+      val bringAppToForegroundOnEnd = pigeonVar_list[7] as Boolean
+      return VoiceConfig(ringbackAssetPath, connectToneAssetPath, disconnectToneAssetPath, playRingback, playConnectTone, playDisconnectTone, bringAppToForegroundOnAnswer, bringAppToForegroundOnEnd)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      ringbackAssetPath,
+      connectToneAssetPath,
+      disconnectToneAssetPath,
+      playRingback,
+      playConnectTone,
+      playDisconnectTone,
+      bringAppToForegroundOnAnswer,
+      bringAppToForegroundOnEnd,
+    )
+  }
+}
 private open class VoiceApiPigeonCodec : StandardMessageCodec() {
   override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
     return when (type) {
@@ -219,27 +305,42 @@ private open class VoiceApiPigeonCodec : StandardMessageCodec() {
       }
       130.toByte() -> {
         return (readValue(buffer) as Long?)?.let {
-          CallEventType.ofRaw(it.toInt())
+          AudioRoute.ofRaw(it.toInt())
         }
       }
       131.toByte() -> {
-        return (readValue(buffer) as? List<Any?>)?.let {
-          ActiveCallDto.fromList(it)
+        return (readValue(buffer) as Long?)?.let {
+          CallEventType.ofRaw(it.toInt())
         }
       }
       132.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
-          CallErrorDto.fromList(it)
+          AudioRouteInfo.fromList(it)
         }
       }
       133.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
-          CallEventDto.fromList(it)
+          ActiveCallDto.fromList(it)
         }
       }
       134.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
+          CallErrorDto.fromList(it)
+        }
+      }
+      135.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          CallEventDto.fromList(it)
+        }
+      }
+      136.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
           PlaceCallRequest.fromList(it)
+        }
+      }
+      137.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          VoiceConfig.fromList(it)
         }
       }
       else -> super.readValueOfType(type, buffer)
@@ -251,24 +352,36 @@ private open class VoiceApiPigeonCodec : StandardMessageCodec() {
         stream.write(129)
         writeValue(stream, value.raw)
       }
-      is CallEventType -> {
+      is AudioRoute -> {
         stream.write(130)
         writeValue(stream, value.raw)
       }
-      is ActiveCallDto -> {
+      is CallEventType -> {
         stream.write(131)
-        writeValue(stream, value.toList())
+        writeValue(stream, value.raw)
       }
-      is CallErrorDto -> {
+      is AudioRouteInfo -> {
         stream.write(132)
         writeValue(stream, value.toList())
       }
-      is CallEventDto -> {
+      is ActiveCallDto -> {
         stream.write(133)
         writeValue(stream, value.toList())
       }
-      is PlaceCallRequest -> {
+      is CallErrorDto -> {
         stream.write(134)
+        writeValue(stream, value.toList())
+      }
+      is CallEventDto -> {
+        stream.write(135)
+        writeValue(stream, value.toList())
+      }
+      is PlaceCallRequest -> {
+        stream.write(136)
+        writeValue(stream, value.toList())
+      }
+      is VoiceConfig -> {
+        stream.write(137)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -293,6 +406,11 @@ interface VoiceHostApi {
   fun getActiveCall(callback: (Result<ActiveCallDto?>) -> Unit)
   fun hasMicPermission(callback: (Result<Boolean>) -> Unit)
   fun requestMicPermission(callback: (Result<Boolean>) -> Unit)
+  fun configure(config: VoiceConfig, callback: (Result<Unit>) -> Unit)
+  fun setAudioRoute(route: AudioRoute, callback: (Result<Unit>) -> Unit)
+  fun getAudioRoute(callback: (Result<AudioRoute>) -> Unit)
+  fun listAudioRoutes(callback: (Result<List<AudioRouteInfo>>) -> Unit)
+  fun bringAppToForeground(callback: (Result<Unit>) -> Unit)
 
   companion object {
     /** The codec used by VoiceHostApi. */
@@ -550,6 +668,97 @@ interface VoiceHostApi {
               } else {
                 val data = result.getOrNull()
                 reply.reply(wrapResult(data))
+              }
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.configure$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val configArg = args[0] as VoiceConfig
+            api.configure(configArg) { result: Result<Unit> ->
+              val error = result.exceptionOrNull()
+              if (error != null) {
+                reply.reply(wrapError(error))
+              } else {
+                reply.reply(wrapResult(null))
+              }
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.setAudioRoute$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val routeArg = args[0] as AudioRoute
+            api.setAudioRoute(routeArg) { result: Result<Unit> ->
+              val error = result.exceptionOrNull()
+              if (error != null) {
+                reply.reply(wrapError(error))
+              } else {
+                reply.reply(wrapResult(null))
+              }
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.getAudioRoute$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            api.getAudioRoute{ result: Result<AudioRoute> ->
+              val error = result.exceptionOrNull()
+              if (error != null) {
+                reply.reply(wrapError(error))
+              } else {
+                val data = result.getOrNull()
+                reply.reply(wrapResult(data))
+              }
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.listAudioRoutes$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            api.listAudioRoutes{ result: Result<List<AudioRouteInfo>> ->
+              val error = result.exceptionOrNull()
+              if (error != null) {
+                reply.reply(wrapError(error))
+              } else {
+                val data = result.getOrNull()
+                reply.reply(wrapResult(data))
+              }
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.twilio_voice_sms.VoiceHostApi.bringAppToForeground$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            api.bringAppToForeground{ result: Result<Unit> ->
+              val error = result.exceptionOrNull()
+              if (error != null) {
+                reply.reply(wrapError(error))
+              } else {
+                reply.reply(wrapResult(null))
               }
             }
           }

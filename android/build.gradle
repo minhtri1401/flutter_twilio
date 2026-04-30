@@ -54,6 +54,15 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+
+    sourceSets {
+        test.java.srcDirs += 'src/test/kotlin'
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+        unitTests.includeAndroidResources = true
+    }
 }
 
 dependencies {
@@ -67,5 +76,8 @@ dependencies {
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
     runtimeOnly("androidx.lifecycle:lifecycle-extensions:2.2.0")
     runtimeOnly("androidx.constraintlayout:constraintlayout:2.2.1")
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.11.1'
 }
 

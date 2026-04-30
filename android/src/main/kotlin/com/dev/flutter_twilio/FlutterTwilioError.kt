@@ -62,6 +62,28 @@ object FlutterTwilioError {
         )
     }
 
+    fun bluetoothUnavailable(message: String): FlutterError =
+        of("bluetooth_unavailable", message)
+
+    fun wiredUnavailable(message: String): FlutterError =
+        of("wired_unavailable", message)
+
+    fun audioRouteFailed(message: String): FlutterError =
+        of("audio_route_failed", message)
+
+    fun toneAssetNotFound(path: String): FlutterError =
+        of(
+            code = "tone_asset_not_found",
+            message = "Tone asset not found: $path",
+            details = mapOf("assetPath" to path),
+        )
+
+    fun notificationPermissionDenied(): FlutterError =
+        of(
+            code = "notification_permission_denied",
+            message = "POST_NOTIFICATIONS permission is required",
+        )
+
     fun unknown(cause: Throwable): FlutterError = of(
         code = "unknown",
         message = cause.message ?: cause::class.java.simpleName,

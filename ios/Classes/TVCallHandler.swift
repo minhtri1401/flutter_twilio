@@ -43,6 +43,20 @@ final class TVCallHandler {
     /// main thread — see [resolvePendingPlace] / [rejectPendingPlace].
     private var pendingPlaceContinuation: CheckedContinuation<ActiveCallDto, Error>?
 
+    // Tone players + ringback controller. The controller is rebuilt at the
+    // start of each outgoing call so it picks up the latest VoiceConfig.
+    let connectTone = TVTonePlayer()
+    let disconnectTone = TVTonePlayer()
+    private(set) var ringback: TVRingbackController?
+
+    func makeRingbackController() {
+        ringback = TVRingbackController(
+            player: TVTonePlayer(),
+            enabled: state.voiceConfig.playRingback,
+            customAssetKey: state.voiceConfig.ringbackAssetKey
+        )
+    }
+
     init(
         state: TVPluginState,
         emitter: TVEventEmitter,
@@ -243,6 +257,8 @@ final class TVCallHandler {
             isMuted: state.isMuted,
             isOnHold: state.isOnHold,
             isOnSpeaker: audioHandler.isSpeakerOn,
+            currentRoute: TVAudioRouteMapper.currentRoute(),
+            connectedAt: state.connectedAtMillis,
             customParameters: custom
         )
     }
@@ -266,6 +282,8 @@ final class TVCallHandler {
             isMuted: state.isMuted,
             isOnHold: state.isOnHold,
             isOnSpeaker: audioHandler.isSpeakerOn,
+            currentRoute: TVAudioRouteMapper.currentRoute(),
+            connectedAt: state.connectedAtMillis,
             customParameters: [:]
         )
     }
@@ -408,6 +426,7 @@ final class TVCallHandler {
         state.isOnHold = false
         state.isSpeakerOn = false
         state.callStartedAtMillis = 0
+        state.connectedAtMillis = nil
     }
 
     func incomingPushHandled() {

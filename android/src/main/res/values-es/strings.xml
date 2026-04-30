@@ -2,4 +2,14 @@
 <resources>
     <string name="cancel">Cancelar</string>
     <string name="proceed">Proceder</string>
+    <string name="flutter_twilio_channel_incoming_name">Llamadas entrantes</string>
+    <string name="flutter_twilio_channel_incoming_desc">Notificaciones de llamadas de voz entrantes</string>
+    <string name="flutter_twilio_channel_missed_name">Llamadas perdidas</string>
+    <string name="flutter_twilio_channel_missed_desc">Notificaciones de llamadas que perdiste</string>
+    <string name="flutter_twilio_action_accept">Aceptar</string>
+    <string name="flutter_twilio_action_decline">Rechazar</string>
+    <string name="flutter_twilio_incoming_call_title">Llamada entrante</string>
+    <string name="flutter_twilio_incoming_call_text">De %1$s</string>
+    <string name="flutter_twilio_missed_call_title">Llamada perdida</string>
+    <string name="flutter_twilio_missed_call_text">De %1$s</string>
 </resources>

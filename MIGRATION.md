@@ -481,3 +481,45 @@ platform :ios, '13.0'
 | `BIND_TELECOM_CONNECTION_SERVICE` permission | Yes | No |
 | System call UI consent | Yes | No |
 | Microphone permission before call | Recommended | **Required** |
+
+## Upgrading to 0.2.0
+
+### New features
+- `setAudioRoute(AudioRoute)` / `getAudioRoute()` / `listAudioRoutes()` —
+  typed audio routing with `AudioRoute.{earpiece, speaker, bluetooth, wired}`.
+  Routes are surfaced live via the new `CallEvent.audioRouteChanged` event.
+- Bundled call tones — ringback (default-on, NA cadence), connect/disconnect
+  beeps (opt-in). Override via the new init parameters
+  `ringbackAsset`, `connectToneAsset`, `disconnectToneAsset`.
+- `ActiveCall.connectedAt` — native-sourced timestamp set when media flows.
+  Use `now() - connectedAt` for an accurate call-duration ticker.
+- Android background-killed reliability — high-priority + full-screen-intent
+  incoming-call notification, missed-call notification.
+- `bringAppToForeground()` (Android-only effect; iOS no-op via CallKit).
+
+### Deprecations (will be removed in 0.3.0)
+- `setSpeaker(bool)` → use `setAudioRoute(AudioRoute.speaker | AudioRoute.earpiece)`.
+  The shim still works; you'll see a deprecation warning at compile time.
+- `CallEvent.speakerOn` / `CallEvent.speakerOff` → listen for
+  `CallEvent.audioRouteChanged` and read `active.currentRoute`.
+  Both events still fire alongside the new one for one cycle.
+
+### Required Android manifest changes (consumer app)
+Add to `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+<!-- Only if your app uses AudioRoute.bluetooth -->
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+```
+
+Android 14+: `USE_FULL_SCREEN_INTENT` is auto-granted to apps in the calling
+category. If your app falls outside that category, request the permission at
+runtime via `ActivityCompat.requestPermissions(...)`.
+
+### iOS — no manifest changes
+CallKit + PushKit already cover background-killed incoming-call delivery. The
+new `bringAppToForeground` and `bringAppToForegroundOn*` init flags are
+accepted on iOS for API symmetry but have no effect — iOS doesn't allow apps
+to programmatically come to the foreground from the background.

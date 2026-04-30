@@ -10,10 +10,22 @@ extension FlutterTwilioPlugin: CallDelegate {
         // resolve any pending `place()` continuation with the live snapshot.
         callHandler.resolvePendingPlace(with: call)
         emitter.emit(.ringing)
+        callHandler.makeRingbackController()
+        callHandler.ringback?.onCallEvent(.outgoingConnecting)
     }
 
     public func callDidConnect(call: Call) {
-        state.callStartedAtMillis = Int64(Date().timeIntervalSince1970 * 1000.0)
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000.0)
+        state.callStartedAtMillis = nowMs
+        state.connectedAtMillis = nowMs
+        callHandler.ringback?.onCallEvent(.connected)
+        if state.voiceConfig.playConnectTone {
+            callHandler.connectTone.play(
+                flutterAssetKey: state.voiceConfig.connectToneAssetKey,
+                bundledResource: "connect_tone",
+                looping: false
+            )
+        }
         emitter.emit(.connected)
         callHandler.callKitCompletionCallback?(true)
         // Default speaker-off on connect, matching the legacy behavior.
@@ -29,6 +41,7 @@ extension FlutterTwilioPlugin: CallDelegate {
     }
 
     public func callDidFailToConnect(call: Call, error: Error) {
+        callHandler.ringback?.onCallEvent(.error)
         let ns = error as NSError
         let twilioCode = ns.userInfo["TVErrorCodeKey"] as? Int ?? ns.code
         let stable = FlutterTwilioError.stableCodeFor(nsError: ns, twilioCode: twilioCode)
@@ -48,6 +61,14 @@ extension FlutterTwilioPlugin: CallDelegate {
     }
 
     public func callDidDisconnect(call: Call, error: Error?) {
+        callHandler.ringback?.onCallEvent(.disconnected)
+        if state.voiceConfig.playDisconnectTone {
+            callHandler.disconnectTone.play(
+                flutterAssetKey: state.voiceConfig.disconnectToneAssetKey,
+                bundledResource: "disconnect_tone",
+                looping: false
+            )
+        }
         if let error = error {
             let ns = error as NSError
             let twilioCode = ns.userInfo["TVErrorCodeKey"] as? Int ?? ns.code

@@ -13,6 +13,19 @@ import 'package:pigeon/pigeon.dart';
 ))
 enum CallDirection { incoming, outgoing }
 
+enum AudioRoute { earpiece, speaker, bluetooth, wired }
+
+class AudioRouteInfo {
+  AudioRouteInfo({
+    required this.route,
+    required this.isActive,
+    this.deviceName,
+  });
+  AudioRoute route;
+  bool isActive;
+  String? deviceName;
+}
+
 /// Mirrors Dart's CallEvent enum. Keep this in sync 1:1 with
 /// lib/src/voice/models/call_event.dart — add new values to both sides.
 enum CallEventType {
@@ -38,6 +51,7 @@ enum CallEventType {
   unmute,
   speakerOn,
   speakerOff,
+  audioRouteChanged,
   error,
 }
 
@@ -51,6 +65,8 @@ class ActiveCallDto {
     required this.isMuted,
     required this.isOnHold,
     required this.isOnSpeaker,
+    required this.currentRoute,
+    this.connectedAt,
     this.customParameters,
   });
 
@@ -62,6 +78,8 @@ class ActiveCallDto {
   bool isMuted;
   bool isOnHold;
   bool isOnSpeaker;
+  AudioRoute currentRoute;
+  int? connectedAt;
   Map<String?, String?>? customParameters;
 }
 
@@ -82,11 +100,13 @@ class CallEventDto {
     required this.type,
     this.activeCall,
     this.error,
+    this.audioRoute,
   });
 
   CallEventType type;
   ActiveCallDto? activeCall;
   CallErrorDto? error;
+  AudioRoute? audioRoute;
 }
 
 class PlaceCallRequest {
@@ -99,6 +119,28 @@ class PlaceCallRequest {
   String to;
   String? from;
   Map<String?, String?>? extraParameters;
+}
+
+class VoiceConfig {
+  VoiceConfig({
+    this.ringbackAssetPath,
+    this.connectToneAssetPath,
+    this.disconnectToneAssetPath,
+    required this.playRingback,
+    required this.playConnectTone,
+    required this.playDisconnectTone,
+    required this.bringAppToForegroundOnAnswer,
+    required this.bringAppToForegroundOnEnd,
+  });
+
+  String? ringbackAssetPath;
+  String? connectToneAssetPath;
+  String? disconnectToneAssetPath;
+  bool playRingback;
+  bool playConnectTone;
+  bool playDisconnectTone;
+  bool bringAppToForegroundOnAnswer;
+  bool bringAppToForegroundOnEnd;
 }
 
 @HostApi()
@@ -144,6 +186,21 @@ abstract class VoiceHostApi {
 
   @async
   bool requestMicPermission();
+
+  @async
+  void configure(VoiceConfig config);
+
+  @async
+  void setAudioRoute(AudioRoute route);
+
+  @async
+  AudioRoute getAudioRoute();
+
+  @async
+  List<AudioRouteInfo> listAudioRoutes();
+
+  @async
+  void bringAppToForeground();
 }
 
 @FlutterApi()

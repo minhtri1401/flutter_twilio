@@ -5,4 +5,14 @@
     <string name="connection_service_name" translatable="false">Voice Call Service</string>
     <string name="phone_account_name" translatable="false" />
     <string name="phone_account_desc" translatable="false" />
+    <string name="flutter_twilio_channel_incoming_name">Incoming calls</string>
+    <string name="flutter_twilio_channel_incoming_desc">Notifications for incoming voice calls</string>
+    <string name="flutter_twilio_channel_missed_name">Missed calls</string>
+    <string name="flutter_twilio_channel_missed_desc">Notifications for calls you missed</string>
+    <string name="flutter_twilio_action_accept">Accept</string>
+    <string name="flutter_twilio_action_decline">Decline</string>
+    <string name="flutter_twilio_incoming_call_title">Incoming call</string>
+    <string name="flutter_twilio_incoming_call_text">From %1$s</string>
+    <string name="flutter_twilio_missed_call_title">Missed call</string>
+    <string name="flutter_twilio_missed_call_text">From %1$s</string>
 </resources>

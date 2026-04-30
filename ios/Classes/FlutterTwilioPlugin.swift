@@ -48,6 +48,7 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
     let permissionHandler: TVPermissionHandler
     let callHandler: TVCallHandler
     let registrationHandler: TVRegistrationHandler
+    private var audioRouteObserver: TVAudioRouteObserver?
 
     // MARK: - Pigeon Flutter API
 
@@ -97,9 +98,16 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
         emitter.activeCallProvider = { [weak self] in
             self?.callHandler.getActiveCall()
         }
+
+        let observer = TVAudioRouteObserver { [weak self] route in
+            self?.emitter.emit(.audioRouteChanged, audioRoute: route)
+        }
+        observer.start()
+        audioRouteObserver = observer
     }
 
     deinit {
+        audioRouteObserver?.stop()
         callKitProvider.invalidate()
     }
 
@@ -188,7 +196,7 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
     }
 
     func setSpeaker(onSpeaker: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
-        guardCall(completion) { try self.audioHandler.setSpeaker(onSpeaker) }
+        guardCall(completion) { try self.audioHandler.setSpeakerLegacy(onSpeaker) }
     }
 
     func sendDigits(digits: String, completion: @escaping (Result<Void, Error>) -> Void) {
@@ -207,6 +215,50 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
         permissionHandler.requestMicPermission { granted in
             completion(.success(granted))
         }
+    }
+
+    func configure(config: VoiceConfig, completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) {
+            try self.validateAsset(config.ringbackAssetPath)
+            try self.validateAsset(config.connectToneAssetPath)
+            try self.validateAsset(config.disconnectToneAssetPath)
+            self.state.voiceConfig = TVVoiceConfig(
+                ringbackAssetKey: config.ringbackAssetPath,
+                connectToneAssetKey: config.connectToneAssetPath,
+                disconnectToneAssetKey: config.disconnectToneAssetPath,
+                playRingback: config.playRingback,
+                playConnectTone: config.playConnectTone,
+                playDisconnectTone: config.playDisconnectTone,
+                bringAppToForegroundOnAnswer: config.bringAppToForegroundOnAnswer,
+                bringAppToForegroundOnEnd: config.bringAppToForegroundOnEnd
+            )
+        }
+    }
+
+    private func validateAsset(_ key: String?) throws {
+        guard let key = key else { return }
+        let resolved = FlutterDartProject.lookupKey(forAsset: key)
+        if Bundle.main.path(forResource: resolved, ofType: nil) == nil {
+            throw FlutterTwilioError.toneAssetNotFound(key)
+        }
+    }
+
+    func setAudioRoute(route: AudioRoute, completion: @escaping (Result<Void, Error>) -> Void) {
+        guardCall(completion) { try self.audioHandler.setAudioRoute(route) }
+    }
+
+    func getAudioRoute(completion: @escaping (Result<AudioRoute, Error>) -> Void) {
+        guardCall(completion) { self.audioHandler.current }
+    }
+
+    func listAudioRoutes(completion: @escaping (Result<[AudioRouteInfo], Error>) -> Void) {
+        guardCall(completion) { self.audioHandler.list() }
+    }
+
+    func bringAppToForeground(completion: @escaping (Result<Void, Error>) -> Void) {
+        // CallKit owns foregrounding on iOS — no-op.
+        NSLog("TVPlugin: bringAppToForeground is a no-op on iOS (CallKit handles foregrounding)")
+        completion(.success(()))
     }
 
     // MARK: - Helpers

@@ -29,6 +29,7 @@ void main() {
         isMuted: false,
         isOnHold: false,
         isOnSpeaker: true,
+        currentRoute: AudioRoute.speaker,
         customParameters: {'x': 'y'},
       );
       final c = ActiveCall.fromDto(dto);
@@ -49,6 +50,7 @@ void main() {
         isMuted: false,
         isOnHold: false,
         isOnSpeaker: false,
+        currentRoute: AudioRoute.earpiece,
       );
       expect(ActiveCall.fromDto(dto).customParameters, isEmpty);
     });

@@ -1,18 +1,27 @@
 package com.dev.flutter_twilio
 
+import android.content.Intent
 import android.util.Log
 import com.dev.flutter_twilio.generated.ActiveCallDto
+import com.dev.flutter_twilio.generated.AudioRoute
+import com.dev.flutter_twilio.generated.AudioRouteInfo
 import com.dev.flutter_twilio.generated.CallDirection
 import com.dev.flutter_twilio.generated.FlutterError
 import com.dev.flutter_twilio.generated.PlaceCallRequest
+import com.dev.flutter_twilio.generated.VoiceConfig
 import com.dev.flutter_twilio.generated.VoiceFlutterApi
 import com.dev.flutter_twilio.generated.VoiceHostApi
+import com.dev.flutter_twilio.audio.TVAudioRouteListener
+import com.dev.flutter_twilio.audio.TVAudioRouter
+import com.dev.flutter_twilio.generated.CallEventType
 import com.dev.flutter_twilio.handler.TVAudioMethodHandler
 import com.dev.flutter_twilio.handler.TVCallMethodHandler
 import com.dev.flutter_twilio.handler.TVPermissionMethodHandler
 import com.dev.flutter_twilio.handler.TVRegistrationMethodHandler
 import com.dev.flutter_twilio.service.TVCallManager
+import com.dev.flutter_twilio.service.VoiceConfigLocal
 import com.dev.flutter_twilio.storage.StorageImpl
+import com.dev.flutter_twilio.tone.TVTonePlayer
 import com.twilio.voice.CallException
 import com.twilio.voice.RegistrationException
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -51,6 +60,8 @@ class FlutterTwilioPlugin :
     private lateinit var audioHandler: TVAudioMethodHandler
     private lateinit var permissionHandler: TVPermissionMethodHandler
     private lateinit var registrationHandler: TVRegistrationMethodHandler
+    private lateinit var audioRouter: TVAudioRouter
+    private var audioRouteListener: TVAudioRouteListener? = null
 
     private var flutterApi: VoiceFlutterApi? = null
 
@@ -63,20 +74,35 @@ class FlutterTwilioPlugin :
         VoiceHostApi.setUp(messenger, this)
         flutterApi = VoiceFlutterApi(messenger).also { emitter.attach(it) }
 
+        audioRouter = TVAudioRouter(context)
         callHandler = TVCallMethodHandler(state, emitter)
-        audioHandler = TVAudioMethodHandler(state, emitter)
+        audioHandler = TVAudioMethodHandler(state, emitter, audioRouter)
         permissionHandler = TVPermissionMethodHandler(state, emitter)
         registrationHandler = TVRegistrationMethodHandler(state, emitter)
 
         TVCallManager.init(context)
+        TVCallManager.applyConfig(
+            VoiceConfigLocal.default,
+            TVTonePlayer(context),
+            TVTonePlayer(context),
+            TVTonePlayer(context),
+        )
         TVCallManager.listener = callEventsReceiver
 
         ActiveCallSnapshotter.provider = { snapshotActiveCall() }
+
+        audioRouteListener = TVAudioRouteListener(context).apply {
+            start { route ->
+                emitter.emit(CallEventType.AUDIO_ROUTE_CHANGED, audioRoute = route)
+            }
+        }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPluginBinding) {
         Log.d(TAG, "onDetachedFromEngine")
         VoiceHostApi.setUp(binding.binaryMessenger, null)
+        audioRouteListener?.stop()
+        audioRouteListener = null
         emitter.detach()
         flutterApi = null
         TVCallManager.listener = null
@@ -154,7 +180,7 @@ class FlutterTwilioPlugin :
         guard(callback) { callHandler.setOnHold(onHold) }
 
     override fun setSpeaker(onSpeaker: Boolean, callback: (Result<Unit>) -> Unit) =
-        guard(callback) { audioHandler.setSpeaker(onSpeaker) }
+        guard(callback) { audioHandler.setSpeakerLegacy(onSpeaker) }
 
     override fun sendDigits(digits: String, callback: (Result<Unit>) -> Unit) =
         guard(callback) { callHandler.sendDigits(digits) }
@@ -172,6 +198,68 @@ class FlutterTwilioPlugin :
             }
         } catch (t: Throwable) {
             callback(Result.failure(mapError(t)))
+        }
+    }
+
+    override fun configure(config: VoiceConfig, callback: (Result<Unit>) -> Unit) =
+        guard(callback) {
+            val context = state.context
+                ?: throw FlutterTwilioError.of("not_initialized", "Plugin not attached")
+            validateAsset(context, config.ringbackAssetPath)
+            validateAsset(context, config.connectToneAssetPath)
+            validateAsset(context, config.disconnectToneAssetPath)
+            TVCallManager.applyConfig(
+                VoiceConfigLocal(
+                    ringbackAssetPath = config.ringbackAssetPath,
+                    connectToneAssetPath = config.connectToneAssetPath,
+                    disconnectToneAssetPath = config.disconnectToneAssetPath,
+                    playRingback = config.playRingback,
+                    playConnectTone = config.playConnectTone,
+                    playDisconnectTone = config.playDisconnectTone,
+                    bringAppToForegroundOnAnswer = config.bringAppToForegroundOnAnswer,
+                    bringAppToForegroundOnEnd = config.bringAppToForegroundOnEnd,
+                ),
+                TVTonePlayer(context),
+                TVTonePlayer(context),
+                TVTonePlayer(context),
+            )
+        }
+
+    override fun setAudioRoute(route: AudioRoute, callback: (Result<Unit>) -> Unit) =
+        guard(callback) { audioHandler.setAudioRoute(route) }
+
+    override fun getAudioRoute(callback: (Result<AudioRoute>) -> Unit) =
+        guard(callback) { audioHandler.getAudioRoute() }
+
+    override fun listAudioRoutes(callback: (Result<List<AudioRouteInfo>>) -> Unit) =
+        guard(callback) { audioHandler.listAudioRoutes() }
+
+    override fun bringAppToForeground(callback: (Result<Unit>) -> Unit) =
+        guard(callback) {
+            val context = state.context
+                ?: throw FlutterTwilioError.of("not_initialized", "Plugin not attached")
+            val intent = context.packageManager
+                .getLaunchIntentForPackage(context.packageName)
+                ?: throw FlutterTwilioError.audioRouteFailed(
+                    "No launch intent for package ${context.packageName}",
+                )
+            intent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
+            )
+            intent.putExtra("com.dev.flutter_twilio.action", "manual")
+            context.startActivity(intent)
+        }
+
+    private fun validateAsset(context: android.content.Context, flutterAssetKey: String?) {
+        if (flutterAssetKey == null) return
+        try {
+            val loader = io.flutter.FlutterInjector.instance().flutterLoader()
+            val resolved = loader.getLookupKeyForAsset(flutterAssetKey)
+            context.assets.openFd(resolved).use { /* ok */ }
+        } catch (t: Throwable) {
+            throw FlutterTwilioError.toneAssetNotFound(flutterAssetKey)
         }
     }
 
@@ -219,7 +307,9 @@ class FlutterTwilioPlugin :
             startedAt = TVCallManager.callStartedAtMillis,
             isMuted = state.isMuted,
             isOnHold = state.isHolding,
-            isOnSpeaker = TVCallManager.audioManager?.isSpeakerOn ?: state.isSpeakerOn,
+            isOnSpeaker = state.isSpeakerOn,
+            currentRoute = audioRouter.current(),
+            connectedAt = TVCallManager.connectedAtMillis,
             customParameters = custom,
         )
     }

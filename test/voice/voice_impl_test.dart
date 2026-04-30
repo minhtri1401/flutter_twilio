@@ -44,6 +44,7 @@ class _FakeHost implements VoiceHostApi {
       isMuted: false,
       isOnHold: false,
       isOnSpeaker: false,
+      currentRoute: AudioRoute.earpiece,
     );
     return _active!;
   }
@@ -92,6 +93,27 @@ class _FakeHost implements VoiceHostApi {
 
   @override
   Future<bool> requestMicPermission() async => true;
+
+  @override
+  Future<void> configure(VoiceConfig config) async {
+    log.add('configure');
+  }
+
+  @override
+  Future<void> setAudioRoute(AudioRoute route) async {
+    log.add('setAudioRoute:$route');
+  }
+
+  @override
+  Future<AudioRoute> getAudioRoute() async => AudioRoute.earpiece;
+
+  @override
+  Future<List<AudioRouteInfo>> listAudioRoutes() async => const [];
+
+  @override
+  Future<void> bringAppToForeground() async {
+    log.add('bringAppToForeground');
+  }
 }
 
 void main() {
@@ -121,6 +143,7 @@ void main() {
         isMuted: false,
         isOnHold: false,
         isOnSpeaker: false,
+        currentRoute: AudioRoute.earpiece,
       ),
     ));
 
