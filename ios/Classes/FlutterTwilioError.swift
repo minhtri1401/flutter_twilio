@@ -37,6 +37,22 @@ enum FlutterTwilioError {
         PigeonError(code: code, message: message, details: details)
     }
 
+    static func bluetoothUnavailable(_ msg: String) -> PigeonError {
+        of("bluetooth_unavailable", msg)
+    }
+
+    static func wiredUnavailable(_ msg: String) -> PigeonError {
+        of("wired_unavailable", msg)
+    }
+
+    static func audioRouteFailed(_ msg: String) -> PigeonError {
+        of("audio_route_failed", msg)
+    }
+
+    static func toneAssetNotFound(_ path: String) -> PigeonError {
+        of("tone_asset_not_found", "Tone asset not found: \(path)", ["assetPath": path])
+    }
+
     /// Maps a Twilio SDK error to a [PigeonError]. Returns an `invalid_token`
     /// or `connection_error` when the NSError code lands in the corresponding
     /// set, else falls through to `twilio_sdk_error`.
