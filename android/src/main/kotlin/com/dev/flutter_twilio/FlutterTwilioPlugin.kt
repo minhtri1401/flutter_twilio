@@ -205,6 +205,9 @@ class FlutterTwilioPlugin :
         guard(callback) {
             val context = state.context
                 ?: throw FlutterTwilioError.of("not_initialized", "Plugin not attached")
+            validateAsset(context, config.ringbackAssetPath)
+            validateAsset(context, config.connectToneAssetPath)
+            validateAsset(context, config.disconnectToneAssetPath)
             TVCallManager.applyConfig(
                 VoiceConfigLocal(
                     ringbackAssetPath = config.ringbackAssetPath,
@@ -220,9 +223,6 @@ class FlutterTwilioPlugin :
                 TVTonePlayer(context),
                 TVTonePlayer(context),
             )
-            validateAsset(context, config.ringbackAssetPath)
-            validateAsset(context, config.connectToneAssetPath)
-            validateAsset(context, config.disconnectToneAssetPath)
         }
 
     override fun setAudioRoute(route: AudioRoute, callback: (Result<Unit>) -> Unit) =
