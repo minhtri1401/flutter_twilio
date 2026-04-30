@@ -13,12 +13,12 @@ import io.flutter.embedding.engine.loader.FlutterLoader
  * key (resolved via FlutterLoader) or null to fall back to the bundled
  * default at the given fallback asset path under `assets/flutter_twilio/`.
  */
-class TVTonePlayer(private val context: Context) {
+class TVTonePlayer(private val context: Context) : TVTonePlayerLike {
 
     private val TAG = "TVTonePlayer"
     private var player: MediaPlayer? = null
 
-    fun play(
+    override fun play(
         flutterAssetKey: String?,
         bundledAssetPath: String,
         looping: Boolean,
@@ -59,7 +59,7 @@ class TVTonePlayer(private val context: Context) {
         }
     }
 
-    fun stop() {
+    override fun stop() {
         try {
             player?.let {
                 if (it.isPlaying) it.stop()
