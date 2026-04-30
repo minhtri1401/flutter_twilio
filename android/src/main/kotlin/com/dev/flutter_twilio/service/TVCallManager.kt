@@ -220,6 +220,14 @@ object TVCallManager : Call.Listener {
         activeCall?.sendDigits(digits) ?: Log.w(TAG, "sendDigits: No active call")
     }
 
+    fun acceptPendingInvite(context: Context): Boolean = acceptCall(context)
+
+    fun rejectPendingInvite(context: Context): Boolean = rejectCall(context)
+
+    fun shouldBringAppToForegroundOnAnswer(): Boolean = config.bringAppToForegroundOnAnswer
+
+    fun shouldBringAppToForegroundOnEnd(): Boolean = config.bringAppToForegroundOnEnd
+
     fun hasActiveCall(): Boolean = activeCall != null || activeCallInvite != null
 
     fun getActiveCallSid(): String? = activeCall?.sid ?: activeCallInvite?.callSid

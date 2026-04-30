@@ -5,12 +5,22 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application>
         <service
             android:name=".service.TVCallAudioService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <receiver
+            android:name="com.dev.flutter_twilio.ui.IncomingCallActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.dev.flutter_twilio.ACCEPT" />
+                <action android:name="com.dev.flutter_twilio.DECLINE" />
+            </intent-filter>
+        </receiver>
 
         <meta-data
             android:name="flutterEmbedding"
