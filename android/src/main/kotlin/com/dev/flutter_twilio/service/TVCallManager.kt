@@ -1,6 +1,7 @@
 package com.dev.flutter_twilio.service
 
 import android.content.Context
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -284,6 +285,19 @@ object TVCallManager : Call.Listener {
                 looping = false,
                 forSignalling = true,
             )
+        }
+        if (config.bringAppToForegroundOnEnd) {
+            appContext?.let { ctx ->
+                ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.let { intent ->
+                    intent.addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                    )
+                    intent.putExtra("com.dev.flutter_twilio.action", "call_ended")
+                    ctx.startActivity(intent)
+                }
+            }
         }
         cleanup()
         mainHandler.post { listener?.onCallDisconnected(call, error) }

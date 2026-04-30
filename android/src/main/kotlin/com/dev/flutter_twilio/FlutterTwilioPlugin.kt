@@ -1,5 +1,6 @@
 package com.dev.flutter_twilio
 
+import android.content.Intent
 import android.util.Log
 import com.dev.flutter_twilio.generated.ActiveCallDto
 import com.dev.flutter_twilio.generated.AudioRoute
@@ -201,7 +202,28 @@ class FlutterTwilioPlugin :
     }
 
     override fun configure(config: VoiceConfig, callback: (Result<Unit>) -> Unit) =
-        guard(callback) { /* TODO(Task 22): apply VoiceConfig */ }
+        guard(callback) {
+            val context = state.context
+                ?: throw FlutterTwilioError.of("not_initialized", "Plugin not attached")
+            TVCallManager.applyConfig(
+                VoiceConfigLocal(
+                    ringbackAssetPath = config.ringbackAssetPath,
+                    connectToneAssetPath = config.connectToneAssetPath,
+                    disconnectToneAssetPath = config.disconnectToneAssetPath,
+                    playRingback = config.playRingback,
+                    playConnectTone = config.playConnectTone,
+                    playDisconnectTone = config.playDisconnectTone,
+                    bringAppToForegroundOnAnswer = config.bringAppToForegroundOnAnswer,
+                    bringAppToForegroundOnEnd = config.bringAppToForegroundOnEnd,
+                ),
+                TVTonePlayer(context),
+                TVTonePlayer(context),
+                TVTonePlayer(context),
+            )
+            validateAsset(context, config.ringbackAssetPath)
+            validateAsset(context, config.connectToneAssetPath)
+            validateAsset(context, config.disconnectToneAssetPath)
+        }
 
     override fun setAudioRoute(route: AudioRoute, callback: (Result<Unit>) -> Unit) =
         guard(callback) { audioHandler.setAudioRoute(route) }
@@ -214,8 +236,32 @@ class FlutterTwilioPlugin :
 
     override fun bringAppToForeground(callback: (Result<Unit>) -> Unit) =
         guard(callback) {
-            throw FlutterTwilioError.of("not_initialized", "bringAppToForeground not yet wired")
+            val context = state.context
+                ?: throw FlutterTwilioError.of("not_initialized", "Plugin not attached")
+            val intent = context.packageManager
+                .getLaunchIntentForPackage(context.packageName)
+                ?: throw FlutterTwilioError.audioRouteFailed(
+                    "No launch intent for package ${context.packageName}",
+                )
+            intent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
+            )
+            intent.putExtra("com.dev.flutter_twilio.action", "manual")
+            context.startActivity(intent)
         }
+
+    private fun validateAsset(context: android.content.Context, flutterAssetKey: String?) {
+        if (flutterAssetKey == null) return
+        try {
+            val loader = io.flutter.FlutterInjector.instance().flutterLoader()
+            val resolved = loader.getLookupKeyForAsset(flutterAssetKey)
+            context.assets.openFd(resolved).use { /* ok */ }
+        } catch (t: Throwable) {
+            throw FlutterTwilioError.toneAssetNotFound(flutterAssetKey)
+        }
+    }
 
     // endregion
 
