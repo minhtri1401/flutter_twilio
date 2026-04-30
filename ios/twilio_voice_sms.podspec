@@ -14,6 +14,9 @@ Pod::Spec.new do |s|
   s.author           = { 'MinhTri1401' => 'minhtri1412000@gmail.com' }
   s.source           = { :path => '.' }
   s.source_files     = 'Classes/**/*'
+  s.resource_bundles = {
+    'twilio_voice_sms' => ['Resources/*.caf']
+  }
   s.dependency 'Flutter'
   s.dependency 'TwilioVoice', '~> 6.13.6'
   s.platform         = :ios, '13.0'
