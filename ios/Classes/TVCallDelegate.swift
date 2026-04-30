@@ -13,7 +13,9 @@ extension FlutterTwilioPlugin: CallDelegate {
     }
 
     public func callDidConnect(call: Call) {
-        state.callStartedAtMillis = Int64(Date().timeIntervalSince1970 * 1000.0)
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000.0)
+        state.callStartedAtMillis = nowMs
+        state.connectedAtMillis = nowMs
         emitter.emit(.connected)
         callHandler.callKitCompletionCallback?(true)
         // Default speaker-off on connect, matching the legacy behavior.

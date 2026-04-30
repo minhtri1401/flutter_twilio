@@ -412,6 +412,7 @@ final class TVCallHandler {
         state.isOnHold = false
         state.isSpeakerOn = false
         state.callStartedAtMillis = 0
+        state.connectedAtMillis = nil
     }
 
     func incomingPushHandled() {
