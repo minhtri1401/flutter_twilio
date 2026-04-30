@@ -10,6 +10,9 @@ import com.dev.flutter_twilio.generated.PlaceCallRequest
 import com.dev.flutter_twilio.generated.VoiceConfig
 import com.dev.flutter_twilio.generated.VoiceFlutterApi
 import com.dev.flutter_twilio.generated.VoiceHostApi
+import com.dev.flutter_twilio.audio.TVAudioRouteListener
+import com.dev.flutter_twilio.audio.TVAudioRouter
+import com.dev.flutter_twilio.generated.CallEventType
 import com.dev.flutter_twilio.handler.TVAudioMethodHandler
 import com.dev.flutter_twilio.handler.TVCallMethodHandler
 import com.dev.flutter_twilio.handler.TVPermissionMethodHandler
@@ -54,6 +57,8 @@ class FlutterTwilioPlugin :
     private lateinit var audioHandler: TVAudioMethodHandler
     private lateinit var permissionHandler: TVPermissionMethodHandler
     private lateinit var registrationHandler: TVRegistrationMethodHandler
+    private lateinit var audioRouter: TVAudioRouter
+    private var audioRouteListener: TVAudioRouteListener? = null
 
     private var flutterApi: VoiceFlutterApi? = null
 
@@ -66,8 +71,9 @@ class FlutterTwilioPlugin :
         VoiceHostApi.setUp(messenger, this)
         flutterApi = VoiceFlutterApi(messenger).also { emitter.attach(it) }
 
+        audioRouter = TVAudioRouter(context)
         callHandler = TVCallMethodHandler(state, emitter)
-        audioHandler = TVAudioMethodHandler(state, emitter)
+        audioHandler = TVAudioMethodHandler(state, emitter, audioRouter)
         permissionHandler = TVPermissionMethodHandler(state, emitter)
         registrationHandler = TVRegistrationMethodHandler(state, emitter)
 
@@ -75,11 +81,19 @@ class FlutterTwilioPlugin :
         TVCallManager.listener = callEventsReceiver
 
         ActiveCallSnapshotter.provider = { snapshotActiveCall() }
+
+        audioRouteListener = TVAudioRouteListener(context).apply {
+            start { route ->
+                emitter.emit(CallEventType.AUDIO_ROUTE_CHANGED, audioRoute = route)
+            }
+        }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPluginBinding) {
         Log.d(TAG, "onDetachedFromEngine")
         VoiceHostApi.setUp(binding.binaryMessenger, null)
+        audioRouteListener?.stop()
+        audioRouteListener = null
         emitter.detach()
         flutterApi = null
         TVCallManager.listener = null
@@ -157,7 +171,7 @@ class FlutterTwilioPlugin :
         guard(callback) { callHandler.setOnHold(onHold) }
 
     override fun setSpeaker(onSpeaker: Boolean, callback: (Result<Unit>) -> Unit) =
-        guard(callback) { audioHandler.setSpeaker(onSpeaker) }
+        guard(callback) { audioHandler.setSpeakerLegacy(onSpeaker) }
 
     override fun sendDigits(digits: String, callback: (Result<Unit>) -> Unit) =
         guard(callback) { callHandler.sendDigits(digits) }
@@ -182,15 +196,13 @@ class FlutterTwilioPlugin :
         guard(callback) { /* TODO(Task 22): apply VoiceConfig */ }
 
     override fun setAudioRoute(route: AudioRoute, callback: (Result<Unit>) -> Unit) =
-        guard(callback) {
-            throw FlutterTwilioError.of("not_initialized", "setAudioRoute not yet wired")
-        }
+        guard(callback) { audioHandler.setAudioRoute(route) }
 
     override fun getAudioRoute(callback: (Result<AudioRoute>) -> Unit) =
-        guard(callback) { AudioRoute.EARPIECE }
+        guard(callback) { audioHandler.getAudioRoute() }
 
     override fun listAudioRoutes(callback: (Result<List<AudioRouteInfo>>) -> Unit) =
-        guard(callback) { emptyList<AudioRouteInfo>() }
+        guard(callback) { audioHandler.listAudioRoutes() }
 
     override fun bringAppToForeground(callback: (Result<Unit>) -> Unit) =
         guard(callback) {
@@ -241,7 +253,7 @@ class FlutterTwilioPlugin :
             startedAt = TVCallManager.callStartedAtMillis,
             isMuted = state.isMuted,
             isOnHold = state.isHolding,
-            isOnSpeaker = TVCallManager.audioManager?.isSpeakerOn ?: state.isSpeakerOn,
+            isOnSpeaker = state.isSpeakerOn,
             currentRoute = AudioRoute.EARPIECE,
             customParameters = custom,
         )

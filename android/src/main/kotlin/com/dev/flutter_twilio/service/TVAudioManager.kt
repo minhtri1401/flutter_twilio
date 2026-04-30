@@ -1,21 +1,23 @@
 package com.dev.flutter_twilio.service
 
 import android.content.Context
-import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
 import android.util.Log
+import com.dev.flutter_twilio.audio.TVAudioRouter
+import com.dev.flutter_twilio.generated.AudioRoute
 
+/**
+ * Audio focus + mode helper. Routing has moved to [TVAudioRouter] —
+ * this class now only owns AUDIOFOCUS_GAIN + MODE_IN_COMMUNICATION.
+ */
 class TVAudioManager(context: Context) {
     private val TAG = "TVAudioManager"
-    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val audioManager =
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val router = TVAudioRouter(context)
     private var focusRequest: AudioFocusRequest? = null
-
-    var isSpeakerOn: Boolean = false
-        private set
-    var isBluetoothOn: Boolean = false
-        private set
 
     fun requestAudioFocus() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -30,7 +32,10 @@ class TVAudioManager(context: Context) {
             audioManager.requestAudioFocus(focusRequest!!)
         } else {
             @Suppress("DEPRECATION")
-            audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN)
+            audioManager.requestAudioFocus(
+                null, AudioManager.STREAM_VOICE_CALL,
+                AudioManager.AUDIOFOCUS_GAIN,
+            )
         }
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
     }
@@ -46,41 +51,9 @@ class TVAudioManager(context: Context) {
         audioManager.mode = AudioManager.MODE_NORMAL
     }
 
-    fun setSpeaker(on: Boolean) {
-        Log.d(TAG, "setSpeaker: $on")
-        audioManager.isSpeakerphoneOn = on
-        isSpeakerOn = on
-        if (on) {
-            if (isBluetoothOn) setBluetooth(false)
-        }
-    }
-
-    fun setBluetooth(on: Boolean) {
-        Log.d(TAG, "setBluetooth: $on")
-        if (on) {
-            audioManager.startBluetoothSco()
-            audioManager.isBluetoothScoOn = true
-            isBluetoothOn = true
-            if (isSpeakerOn) setSpeaker(false)
-        } else {
-            audioManager.stopBluetoothSco()
-            audioManager.isBluetoothScoOn = false
-            isBluetoothOn = false
-        }
-    }
-
-    fun hasBluetoothDevice(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val devices = audioManager.getDevices(AudioManager.GET_DEVICES_ALL)
-            return devices.any {
-                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
-            }
-        }
-        return false
-    }
-
     fun reset() {
-        if (isBluetoothOn) setBluetooth(false)
-        if (isSpeakerOn) setSpeaker(false)
+        try { router.set(AudioRoute.EARPIECE) } catch (t: Throwable) {
+            Log.w(TAG, "reset routing failed", t)
+        }
     }
 }
