@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-04-30
+
+### Added
+
+- `setAudioRoute` / `getAudioRoute` / `listAudioRoutes` with typed
+  `AudioRoute { earpiece, speaker, bluetooth, wired }`.
+- `CallEvent.audioRouteChanged` event; `ActiveCall.currentRoute` snapshot.
+- `ActiveCall.connectedAt` — native-sourced timestamp for media-connect time.
+- Bundled ringback (default-on) and opt-in connect/disconnect tones, all
+  override-able via `init(ringbackAsset:, connectToneAsset:, disconnectToneAsset:)`.
+- Android: full-screen-intent incoming-call notification with Accept/Decline
+  actions; missed-call notification.
+- `bringAppToForeground()` (Android only; iOS no-op).
+- `init(bringAppToForegroundOnAnswer: true, bringAppToForegroundOnEnd: false)`
+  flags (Android-only effect).
+- New exception types: `BluetoothUnavailableException`,
+  `WiredUnavailableException`, `AudioRouteFailedException`,
+  `ToneAssetNotFoundException`, `NotificationPermissionException`.
+
+### Deprecated (removed in 0.3.0)
+
+- `setSpeaker(bool)` — use `setAudioRoute(AudioRoute.speaker | earpiece)`.
+- `CallEvent.speakerOn` / `speakerOff` — listen for `audioRouteChanged`.
+
 ## [0.1.2] — 2026-04-19
 
 ### Changed
