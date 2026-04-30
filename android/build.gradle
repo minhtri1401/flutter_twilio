@@ -61,6 +61,7 @@ android {
 
     testOptions {
         unitTests.returnDefaultValues = true
+        unitTests.includeAndroidResources = true
     }
 }
 
@@ -77,5 +78,6 @@ dependencies {
     runtimeOnly("androidx.constraintlayout:constraintlayout:2.2.1")
 
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.11.1'
 }
 
