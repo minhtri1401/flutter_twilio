@@ -18,6 +18,7 @@ class TVTonePlayer(private val context: Context) : TVTonePlayerLike {
     private val TAG = "TVTonePlayer"
     private var player: MediaPlayer? = null
 
+    @Synchronized
     override fun play(
         flutterAssetKey: String?,
         bundledAssetPath: String,
@@ -59,6 +60,7 @@ class TVTonePlayer(private val context: Context) : TVTonePlayerLike {
         }
     }
 
+    @Synchronized
     override fun stop() {
         try {
             player?.let {
