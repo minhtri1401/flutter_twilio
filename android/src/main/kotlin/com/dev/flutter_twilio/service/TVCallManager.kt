@@ -69,6 +69,11 @@ object TVCallManager : Call.Listener {
         connectPlayer: TVTonePlayer,
         disconnectPlayer: TVTonePlayer,
     ) {
+        // Stop existing players before replacing to avoid MediaPlayer leaks
+        // and prevent ringback from continuing to play after reconfiguration.
+        connectTonePlayer?.stop()
+        disconnectTonePlayer?.stop()
+        ringback?.onCallEvent(CallPhase.DISCONNECTED)
         config = cfg
         ringback = TVRingbackController(
             ringbackPlayer,
