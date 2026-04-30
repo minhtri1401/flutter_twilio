@@ -2,9 +2,12 @@ package com.dev.flutter_twilio
 
 import android.util.Log
 import com.dev.flutter_twilio.generated.ActiveCallDto
+import com.dev.flutter_twilio.generated.AudioRoute
+import com.dev.flutter_twilio.generated.AudioRouteInfo
 import com.dev.flutter_twilio.generated.CallDirection
 import com.dev.flutter_twilio.generated.FlutterError
 import com.dev.flutter_twilio.generated.PlaceCallRequest
+import com.dev.flutter_twilio.generated.VoiceConfig
 import com.dev.flutter_twilio.generated.VoiceFlutterApi
 import com.dev.flutter_twilio.generated.VoiceHostApi
 import com.dev.flutter_twilio.handler.TVAudioMethodHandler
@@ -175,6 +178,25 @@ class FlutterTwilioPlugin :
         }
     }
 
+    override fun configure(config: VoiceConfig, callback: (Result<Unit>) -> Unit) =
+        guard(callback) { /* TODO(Task 22): apply VoiceConfig */ }
+
+    override fun setAudioRoute(route: AudioRoute, callback: (Result<Unit>) -> Unit) =
+        guard(callback) {
+            throw FlutterTwilioError.of("not_initialized", "setAudioRoute not yet wired")
+        }
+
+    override fun getAudioRoute(callback: (Result<AudioRoute>) -> Unit) =
+        guard(callback) { AudioRoute.EARPIECE }
+
+    override fun listAudioRoutes(callback: (Result<List<AudioRouteInfo>>) -> Unit) =
+        guard(callback) { emptyList<AudioRouteInfo>() }
+
+    override fun bringAppToForeground(callback: (Result<Unit>) -> Unit) =
+        guard(callback) {
+            throw FlutterTwilioError.of("not_initialized", "bringAppToForeground not yet wired")
+        }
+
     // endregion
 
     // region Helpers
@@ -220,6 +242,7 @@ class FlutterTwilioPlugin :
             isMuted = state.isMuted,
             isOnHold = state.isHolding,
             isOnSpeaker = TVCallManager.audioManager?.isSpeakerOn ?: state.isSpeakerOn,
+            currentRoute = AudioRoute.EARPIECE,
             customParameters = custom,
         )
     }
