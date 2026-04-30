@@ -33,11 +33,12 @@ final class TVEventEmitter {
     func emit(
         _ type: CallEventType,
         activeCall: ActiveCallDto? = nil,
-        error: CallErrorDto? = nil
+        error: CallErrorDto? = nil,
+        audioRoute: AudioRoute? = nil
     ) {
         guard let api = api else { return }
         let snap = activeCall ?? activeCallProvider?()
-        let dto = CallEventDto(type: type, activeCall: snap, error: error)
+        let dto = CallEventDto(type: type, activeCall: snap, error: error, audioRoute: audioRoute)
         DispatchQueue.main.async {
             api.onCallEvent(event: dto) { _ in /* delivery result ignored */ }
         }

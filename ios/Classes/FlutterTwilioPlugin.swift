@@ -48,6 +48,7 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
     let permissionHandler: TVPermissionHandler
     let callHandler: TVCallHandler
     let registrationHandler: TVRegistrationHandler
+    private var audioRouteObserver: TVAudioRouteObserver?
 
     // MARK: - Pigeon Flutter API
 
@@ -97,9 +98,16 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
         emitter.activeCallProvider = { [weak self] in
             self?.callHandler.getActiveCall()
         }
+
+        let observer = TVAudioRouteObserver { [weak self] route in
+            self?.emitter.emit(.audioRouteChanged, audioRoute: route)
+        }
+        observer.start()
+        audioRouteObserver = observer
     }
 
     deinit {
+        audioRouteObserver?.stop()
         callKitProvider.invalidate()
     }
 
@@ -188,7 +196,7 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
     }
 
     func setSpeaker(onSpeaker: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
-        guardCall(completion) { try self.audioHandler.setSpeaker(onSpeaker) }
+        guardCall(completion) { try self.audioHandler.setSpeakerLegacy(onSpeaker) }
     }
 
     func sendDigits(digits: String, completion: @escaping (Result<Void, Error>) -> Void) {
@@ -214,23 +222,21 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
     }
 
     func setAudioRoute(route: AudioRoute, completion: @escaping (Result<Void, Error>) -> Void) {
-        guardCall(completion) {
-            throw FlutterTwilioError.of("not_initialized", "setAudioRoute not yet wired")
-        }
+        guardCall(completion) { try self.audioHandler.setAudioRoute(route) }
     }
 
     func getAudioRoute(completion: @escaping (Result<AudioRoute, Error>) -> Void) {
-        guardCall(completion) { AudioRoute.earpiece }
+        guardCall(completion) { self.audioHandler.current }
     }
 
     func listAudioRoutes(completion: @escaping (Result<[AudioRouteInfo], Error>) -> Void) {
-        guardCall(completion) { [AudioRouteInfo]() }
+        guardCall(completion) { self.audioHandler.list() }
     }
 
     func bringAppToForeground(completion: @escaping (Result<Void, Error>) -> Void) {
-        guardCall(completion) {
-            throw FlutterTwilioError.of("not_initialized", "bringAppToForeground not yet wired")
-        }
+        // CallKit owns foregrounding on iOS — no-op.
+        NSLog("TVPlugin: bringAppToForeground is a no-op on iOS (CallKit handles foregrounding)")
+        completion(.success(()))
     }
 
     // MARK: - Helpers
