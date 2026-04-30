@@ -218,7 +218,29 @@ public class FlutterTwilioPlugin: NSObject, FlutterPlugin, VoiceHostApi {
     }
 
     func configure(config: VoiceConfig, completion: @escaping (Result<Void, Error>) -> Void) {
-        guardCall(completion) { /* TODO(Task 28): apply VoiceConfig */ }
+        guardCall(completion) {
+            try self.validateAsset(config.ringbackAssetPath)
+            try self.validateAsset(config.connectToneAssetPath)
+            try self.validateAsset(config.disconnectToneAssetPath)
+            self.state.voiceConfig = TVVoiceConfig(
+                ringbackAssetKey: config.ringbackAssetPath,
+                connectToneAssetKey: config.connectToneAssetPath,
+                disconnectToneAssetKey: config.disconnectToneAssetPath,
+                playRingback: config.playRingback,
+                playConnectTone: config.playConnectTone,
+                playDisconnectTone: config.playDisconnectTone,
+                bringAppToForegroundOnAnswer: config.bringAppToForegroundOnAnswer,
+                bringAppToForegroundOnEnd: config.bringAppToForegroundOnEnd
+            )
+        }
+    }
+
+    private func validateAsset(_ key: String?) throws {
+        guard let key = key else { return }
+        let resolved = FlutterDartProject.lookupKey(forAsset: key)
+        if Bundle.main.path(forResource: resolved, ofType: nil) == nil {
+            throw FlutterTwilioError.toneAssetNotFound(key)
+        }
     }
 
     func setAudioRoute(route: AudioRoute, completion: @escaping (Result<Void, Error>) -> Void) {
