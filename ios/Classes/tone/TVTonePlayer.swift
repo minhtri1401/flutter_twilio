@@ -8,25 +8,35 @@ import Foundation
 class TVTonePlayer {
 
     private var player: AVAudioPlayer?
+    /// Serial queue used to serialize play/stop access from different threads
+    /// (Twilio SDK delegate callbacks vs. Pigeon method-channel calls).
+    private let queue = DispatchQueue(label: "com.dev.flutter_twilio.tone.player")
 
     func play(flutterAssetKey: String?, bundledResource: String, looping: Bool) {
-        stop()
-        guard let url = resolveURL(flutterAssetKey: flutterAssetKey, bundledResource: bundledResource) else {
-            NSLog("TVTonePlayer: tone asset not found (key=\(flutterAssetKey ?? "nil"), bundled=\(bundledResource))")
-            return
-        }
-        do {
-            let p = try AVAudioPlayer(contentsOf: url)
-            p.numberOfLoops = looping ? -1 : 0
-            p.prepareToPlay()
-            p.play()
-            player = p
-        } catch {
-            NSLog("TVTonePlayer: playback failed: \(error.localizedDescription)")
+        queue.sync {
+            _stop()
+            guard let url = resolveURL(flutterAssetKey: flutterAssetKey, bundledResource: bundledResource) else {
+                NSLog("TVTonePlayer: tone asset not found (key=\(flutterAssetKey ?? "nil"), bundled=\(bundledResource))")
+                return
+            }
+            do {
+                let p = try AVAudioPlayer(contentsOf: url)
+                p.numberOfLoops = looping ? -1 : 0
+                p.prepareToPlay()
+                p.play()
+                player = p
+            } catch {
+                NSLog("TVTonePlayer: playback failed: \(error.localizedDescription)")
+            }
         }
     }
 
     func stop() {
+        queue.sync { _stop() }
+    }
+
+    /// Unsynchronized stop — must only be called from within `queue`.
+    private func _stop() {
         player?.stop()
         player = nil
     }
